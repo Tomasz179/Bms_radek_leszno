@@ -67,7 +67,7 @@ const SETTINGS = {
   PASSWORD: "tomek1425",
   MQTT_WSS_URL: "wss://broker.hivemq.com:8884/mqtt",
   PREFIX: "bms_radek_leszno",
-  DEV: "jk-bms-radek-leszno" // z YAML
+  DEV: "jk-bms-radek-leszno"
 };
 
 /* ===================== TEMATY MQTT ===================== */
@@ -90,7 +90,6 @@ function initApp(){
 
   // ===== Definicje kafelków wg YAML =====
   const BMS0_BASIC = [
-    // label, key, unit, decimals
     ['Napięcie całkowite', 'total_voltage', 'V', 2],
     ['Prąd',                'current',       'A', 2],
     ['Prąd grzania',        'heating_current','A',2],
@@ -103,8 +102,6 @@ function initApp(){
     ['Prąd',                'current',       'A', 2],
     ['Prąd grzania',        'heating_current','A',2],
     ['Moc',                 'power',         'W', 0],
-    ['Moc ładowania',       'charging_power','W', 0],
-    ['Moc rozładowania',    'discharging_power','W',0],
     ['Temperatura 1',       'temperature_sensor_1','°C',1],
   ];
 
