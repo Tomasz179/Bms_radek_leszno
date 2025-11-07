@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>JK-BMS Radek Leszno – MQTT</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <style>
+    :root{ --maxw:1100px; } *{box-sizing:border-box}
+    body{font-family:Arial,system-ui,Segoe UI; background:#f6f7fb; margin:0; padding:16px; color:#111}
+    h1{ text-align:center; margin:6px 0 12px; font-size:22px }
+    .wrap{ max-width:var(--maxw); margin:0 auto }
+    .status{ text-align:center; font-size:12px; color:#555; margin-bottom:10px }
+    .grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px }
+    .card{ background:#fff; border-radius:12px; padding:14px; box-shadow:0 3px 12px rgba(0,0,0,.06) }
+    .title{ font-weight:700; margin-bottom:6px }
+    .val{ font-size:20px; font-weight:700 }
+    .unit{ color:#666; margin-left:4px; font-weight:500 }
+    .row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px }
+    .badge{ display:inline-block; padding:4px 8px; border-radius:999px; font-size:12px; font-weight:700; }
+    .on{ background:#e9fff4; color:#0a7; border:1px solid #9cdebf }
+    .off{ background:#f3f4f6; color:#444; border:1px solid #d0d5dd }
+    .text{ font-size:13px; color:#333; white-space:pre-wrap }
+    .section{ margin:14px 0 10px; font-weight:700; color:#444; border-left:4px solid #0d6efd; padding-left:8px }
+
+    /* Hasło */
+    #lock{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:#0b0f1a; z-index:9999 }
+    #lock .box{ background:#fff; padding:18px; border-radius:12px; width:320px; text-align:center; box-shadow:0 10px 30px rgba(0,0,0,.25) }
+    #lock input,#lock button{ width:100%; padding:10px; border-radius:8px }
+    #lock input{ border:1px solid #ddd; margin:8px 0 }
+    #lock button{ border:none; background:#0d6efd; color:#fff; cursor:pointer }
+    #msg{ color:#c00; min-height:1.2em; font-size:13px }
+  </style>
+</head>
+<body>
+  <!-- BLOKADA -->
+  <div id="lock">
+    <div class="box">
+      <h3>🔐 JK-BMS – dostęp</h3>
+      <input id="pwd" type="password" placeholder="Hasło" autocomplete="current-password" />
+      <button id="unlock">Odblokuj</button>
+      <div id="msg"></div>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div id="app" style="display:none">
+    <div class="wrap">
+      <h1>🔋 JK-BMS Radek Leszno</h1>
+      <div class="status">MQTT: <b id="mqtt">inicjalizacja…</b></div>
+
+      <div class="section">BMS 0 – podstawowe</div>
+      <div id="bms0_basic" class="grid"></div>
+
+      <div class="section">BMS 0 – stany</div>
+      <div id="bms0_flags" class="grid"></div>
+
+      <div class="section">BMS 1 – podstawowe</div>
+      <div id="bms1_basic" class="grid"></div>
+
+      <div class="section">BMS 1 – stany</div>
+      <div id="bms1_flags" class="grid"></div>
+
+      <div class="section">Komunikaty</div>
+      <div id="texts" class="grid"></div>
+    </div>
+  </div>
+
+<script>
+/* ===================== USTAWIENIA ===================== */
+const SETTINGS = {
+  PASSWORD: "tomek1425",
+  MQTT_WSS_URL: "wss://broker.hivemq.com:8884/mqtt",
+  PREFIX: "bms_radek_leszno"
+};
+
+/* ===================== CONFIG ===================== */
+/* typy: sensor, binary, text */
+const CONFIG = [
+  // ===== BMS 0 – sensory podstawowe =====
+  { box:'#bms0_basic',  type:'sensor', id:'b0_v',   label:'BMS 0 Napięcie',        unit:'V', decimals:2,
+    topics:['bms_radek_leszno/sensor/jk-bms-radek-leszno_bms0_total_voltage/state'] },
+  { box:'#bms0_basic',  type:'sensor', id:'b0_a',   label:'BMS 0 Prąd',            unit:'A', decimals:2,
+    topics:['bms_radek_leszno/sensor/jk-bms-radek-leszno_bms0_current/state'] },
+  { box:'#bms0_basic',  type:'sensor', id:'b0_soc', label:'BMS 0 Naładowanie',     unit:'%', decimals:1,
+    topics:['bms_radek_leszno/sensor/jk-bms-radek-leszno_bms0_state_of_charge/state'] },
+  { box:'#bms0_basic',  type:'sensor', id:'b0_p',   label:'BMS 0 Moc',             unit:'W', decimals:0,
+    topics:['bms_radek_leszno/sensor/jk-bms-radek-leszno_bms0_power/state'] },
+
+  // ===== BMS 0 – flagi =====
+  { box:'#bms0_flags',  type:'binary', id:'b0_chg', label:'Ładowanie',
+    topics:['bms_radek_leszno/binary_sensor/jk-bms-radek-leszno_bms0_charging/state'] },
+  { box:'#bms0_flags',  type:'binary', id:'b0_dis', label:'Rozładowanie',
+    topics:['bms_radek_leszno/binary_sensor/jk-bms-radek-leszno_bms0_discharging/state'] },
+  { box:'#bms0_flags',  type:'binary', id:'b0_heat', label:'Grzanie',
+    topics:['bms_radek_leszno/binary_sensor/jk-bms-radek-leszno_bms0_heating/state'] },
+  { box:'#bms0_flags',  type:'binary', id:'b0_online', label:'Online',
+    topics:['bms_radek_leszno/binary_sensor/jk-bms-radek-leszno_bms0_online_status/state'] },
+
+  // ===== BMS 1 – sensory podstawowe =====
+  { box:'#bms1_basic',  type:'sensor', id:'b1_v',   label:'BMS 1 Napięcie',        unit:'V', decimals:2,
+    topics:['bms_radek_leszno/sensor/jk-bms-radek-leszno_bms1_total_voltage/state'] },
+  { box:'#bms1_basic',  type:'sensor', id:'b1_a',   label:'BMS 1 Prąd',            unit:'A', decimals:2,
+    topics:['bms_radek_leszno/sensor/jk-bms-radek-leszno_bms1_current/state'] },
+  { box:'#bms1_basic',  type:'sensor', id:'b1_soc', label:'BMS 1 Naładowanie',     unit:'%', decimals:1,
+    topics:['bms_radek_leszno/sensor/jk-bms-radek-leszno_bms1_state_of_charge/state'] },
+  { box:'#bms1_basic',  type:'sensor', id:'b1_p',   label:'BMS 1 Moc',             unit:'W', decimals:0,
+    topics:['bms_radek_leszno/sensor/jk-bms-radek-leszno_bms1_power/state'] },
+
+  // ===== BMS 1 – flagi =====
+  { box:'#bms1_flags',  type:'binary', id:'b1_chg', label:'Ładowanie',
+    topics:['bms_radek_leszno/binary_sensor/jk-bms-radek-leszno_bms1_charging/state'] },
+  { box:'#bms1_flags',  type:'binary', id:'b1_dis', label:'Rozładowanie',
+    topics:['bms_radek_leszno/binary_sensor/jk-bms-radek-leszno_bms1_discharging/state'] },
+  { box:'#bms1_flags',  type:'binary', id:'b1_heat', label:'Grzanie',
+    topics:['bms_radek_leszno/binary_sensor/jk-bms-radek-leszno_bms1_heating/state'] },
+  { box:'#bms1_flags',  type:'binary', id:'b1_online', label:'Online',
+    topics:['bms_radek_leszno/binary_sensor/jk-bms-radek-leszno_bms1_online_status/state'] },
+
+  // ===== Teksty / komunikaty =====
+  { box:'#texts', type:'text', id:'b0_err', label:'BMS 0 błędy',
+    topics:['bms_radek_leszno/text_sensor/jk-bms-radek-leszno_bms0_errors/state'] },
+  { box:'#texts', type:'text', id:'b0_run', label:'BMS 0 czas pracy',
+    topics:['bms_radek_leszno/text_sensor/jk-bms-radek-leszno_bms0_total_runtime_formatted/state'] },
+  { box:'#texts', type:'text', id:'b1_err', label:'BMS 1 błędy',
+    topics:['bms_radek_leszno/text_sensor/jk-bms-radek-leszno_bms1_errors/state'] },
+  { box:'#texts', type:'text', id:'b1_run', label:'BMS 1 czas pracy',
+    topics:['bms_radek_leszno/text_sensor/jk-bms-radek-leszno_bms1_total_runtime_formatted/state'] },
+];
+
+/* ===================== BLOKADA HASŁA ===================== */
+(function(){
+  const lock=document.getElementById('lock'), app=document.getElementById('app');
+  const pwd=document.getElementById('pwd'), msg=document.getElementById('msg');
+  const ok=()=>{ lock.style.display='none'; app.style.display='block'; initApp(); };
+  document.getElementById('unlock').onclick=()=> (pwd.value||'').trim()===SETTINGS.PASSWORD ? ok() : (msg.textContent='❌ Złe hasło');
+  pwd.addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('unlock').click(); });
+  const qp=new URLSearchParams(location.search); if(qp.get('pass')){ pwd.value=qp.get('pass'); document.getElementById('unlock').click(); }
+})();
+
+/* ===================== APP ===================== */
+function initApp(){
+  const elMqtt=document.getElementById('mqtt');
+
+  // Render kart
+  const holders = {};
+  function holder(sel){ return holders[sel] ?? (holders[sel]=document.querySelector(sel)); }
+  const nodes = {}; // id -> {cfg, el/...}
+
+  for(const c of CONFIG){
+    const card=document.createElement('div'); card.className='card';
+    if(c.type==='sensor'){
+      card.innerHTML=`<div class="title">${c.label}</div><div class="val"><span id="${c.id}">—</span>${c.unit?`<span class="unit">${c.unit}</span>`:''}</div>`;
+      holder(c.box).appendChild(card);
+      nodes[c.id]={cfg:c, el:document.getElementById(c.id)};
+    }
+    if(c.type==='binary'){
+      card.innerHTML=`<div class="title">${c.label}</div><div class="row"><span id="${c.id}" class="badge off">OFF</span></div>`;
+      holder(c.box).appendChild(card);
+      nodes[c.id]={cfg:c, el:document.getElementById(c.id)};
+    }
+    if(c.type==='text'){
+      card.innerHTML=`<div class="title">${c.label}</div><div id="${c.id}" class="text">—</div>`;
+      holder(c.box).appendChild(card);
+      nodes[c.id]={cfg:c, el:document.getElementById(c.id)};
+    }
+  }
+
+  const parseNum=v=>{ const m=String(v).match(/-?\d+(?:[.,]\d+)?/); return m?parseFloat(m[0].replace(',','.')):NaN; };
+  const fmt=(n,d=1)=> isNaN(n)?'—':(Math.round(n*10**d)/10**d).toFixed(d).replace('.',',');
+
+  // MQTT
+  const client=mqtt.connect(SETTINGS.MQTT_WSS_URL,{clientId:'bms_'+Math.random().toString(16).slice(2)});
+  client.on('connect',()=>{
+    elMqtt.textContent='połączono';
+    CONFIG.forEach(c => (c.topics||[]).forEach(t => t.endsWith('/state') && client.subscribe(t)));
+  });
+  client.on('reconnect',()=> elMqtt.textContent='ponowne łączenie…');
+  client.on('close',()=> elMqtt.textContent='rozłączono');
+  client.on('error',e=>{ elMqtt.textContent='błąd MQTT (konsola)'; console.error(e); });
+
+  client.on('message',(topic,payload)=>{
+    const val=payload.toString();
+    for(const id in nodes){
+      const n=nodes[id], c=n.cfg;
+      if(!(c.topics||[]).includes(topic)) continue;
+
+      if(c.type==='sensor'){
+        const v=parseNum(val);
+        n.el.textContent = fmt(v, c.decimals ?? 1);
+      }
+      if(c.type==='binary'){
+        const s=String(val).trim().toUpperCase();
+        const on = (s==='ON' || s==='TRUE' || s==='1');
+        n.el.textContent = on ? 'ON' : 'OFF';
+        n.el.classList.toggle('on', on);
+        n.el.classList.toggle('off', !on);
+      }
+      if(c.type==='text'){
+        n.el.textContent = val && val!=='unknown' ? val : '—';
+      }
+    }
+  });
+}
+</script>
+</body>
+</html>
