@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>JK-BMS – pełny podgląd</title>
+  <title>JK-BMS – podgląd z MQTT</title>
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
     :root{ --maxw:1200px } *{box-sizing:border-box}
@@ -18,11 +18,6 @@
     .title{ font-weight:700; margin-bottom:6px }
     .val{ font-size:20px; font-weight:700 }
     .unit{ color:#666; margin-left:4px; font-weight:500 }
-    .row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px }
-    .badge{ display:inline-block; padding:4px 8px; border-radius:999px; font-size:12px; font-weight:700; }
-    .on{ background:#e9fff4; color:#0a7; border:1px solid #9cdebf }
-    .off{ background:#f3f4f6; color:#444; border:1px solid #d0d5dd }
-    .text{ font-size:13px; color:#333; white-space:pre-wrap; word-break:break-word }
     .cell{ background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:10px; box-shadow:0 2px 8px rgba(0,0,0,.04) }
     .cell .hdr{ display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:12px; color:#666 }
 
@@ -49,17 +44,11 @@
   <!-- APP -->
   <div id="app" style="display:none">
     <div class="wrap">
-      <h1>🔋 JK-BMS – pełny podgląd (bms0 + bms1)</h1>
+      <h1>🔋 JK-BMS (bms0 + bms1)</h1>
       <div class="status">MQTT: <b id="mqtt">inicjalizacja…</b></div>
 
       <div class="section">BMS 0 – podstawowe</div>
       <div id="bms0_basic" class="grid"></div>
-
-      <div class="section">BMS 0 – moce/prądy/pojemności</div>
-      <div id="bms0_power" class="grid"></div>
-
-      <div class="section">BMS 0 – stany</div>
-      <div id="bms0_flags" class="grid"></div>
 
       <div class="section">BMS 0 – cele (16×)</div>
       <div id="bms0_cells" class="cells"></div>
@@ -67,17 +56,8 @@
       <div class="section">BMS 1 – podstawowe</div>
       <div id="bms1_basic" class="grid"></div>
 
-      <div class="section">BMS 1 – moce/prądy/pojemności</div>
-      <div id="bms1_power" class="grid"></div>
-
-      <div class="section">BMS 1 – stany</div>
-      <div id="bms1_flags" class="grid"></div>
-
       <div class="section">BMS 1 – cele (16×)</div>
       <div id="bms1_cells" class="cells"></div>
-
-      <div class="section">Komunikaty błędów</div>
-      <div id="texts" class="grid"></div>
     </div>
   </div>
 
@@ -87,45 +67,12 @@ const SETTINGS = {
   PASSWORD: "tomek1425",
   MQTT_WSS_URL: "wss://broker.hivemq.com:8884/mqtt",
   PREFIX: "bms_radek_leszno",
-  DEV: "jk-bms-radek-leszno"
+  DEV: "jk-bms-radek-leszno" // z YAML
 };
 
-/* ===================== GENERATORY TEMATÓW ===================== */
-const topicS = (bms, key) => `${SETTINGS.PREFIX}/sensor/${SETTINGS.DEV}_${bms}_${key}/state`;
-const topicB = (bms, key) => `${SETTINGS.PREFIX}/binary_sensor/${SETTINGS.DEV}_${bms}_${key}/state`;
-const topicT = (bms, key) => `${SETTINGS.PREFIX}/text_sensor/${SETTINGS.DEV}_${bms}_${key}/state`;
-
-/* ===================== DEFINICJE KAFELKÓW ===================== */
-const SENSORS_BASIC = [
-  // label, key, unit, decimals
-  ['Napięcie całkowite', 'total_voltage', 'V', 2],
-  ['Prąd',                'current',       'A', 2],
-  ['SOC',                 'state_of_charge','%',1],
-  ['Temp. czujnik 1',     'temperature_sensor_1','°C',1],
-  ['Temp. MOSFET',        'power_tube_temperature','°C',1],
-  ['Czas pracy (s)',      'total_runtime',  '', 0],
-  ['Bitmask błędów',      'errors_bitmask', '', 0],
-  ['Emergency countdown', 'emergency_time_countdown','s',0],
-];
-
-const SENSORS_POWER = [
-  ['Moc',                        'power',                     'W', 0],
-  ['Moc ładowania',              'charging_power',            'W', 0],
-  ['Moc rozładowania',           'discharging_power',         'W', 0],
-  ['Prąd grzania',               'heating_current',           'A', 2],
-  ['Prąd balansowania',          'balancing_current',         'A', 2],
-  ['Poj. pozostała',             'capacity_remaining',        'Ah',1],
-  ['Poj. ustawiona całkowita',   'total_battery_capacity_setting','Ah',1],
-  ['Cykle ładowania',            'charging_cycles',           '',  0],
-  ['Poj. cykli łącznie',         'total_charging_cycle_capacity','Ah',1],
-];
-
-const FLAGS = [
-  ['Ładowanie',    'charging'],
-  ['Rozładowanie', 'discharging'],
-  ['Balansowanie', 'balancing'],
-  ['Online',       'online_status'],
-];
+/* ===================== TEMATY MQTT ===================== */
+const sTopic = (bms, key) => `${SETTINGS.PREFIX}/sensor/${SETTINGS.DEV}_${bms}_${key}/state`;
+const cellTopic = (bms, idx) => sTopic(bms, `cell_voltage_${idx}`);
 
 /* ===================== BLOKADA HASŁA ===================== */
 (function(){
@@ -140,80 +87,89 @@ const FLAGS = [
 /* ===================== APP ===================== */
 function initApp(){
   const elMqtt=document.getElementById('mqtt');
-  const holders = {};
-  const nodes = {}; // id -> {cfg, el}
-  const holder = sel => holders[sel] ?? (holders[sel]=document.querySelector(sel));
 
-  function addSensor(box, id, label, unit, decimals){
+  // ===== Definicje kafelków wg YAML =====
+  const BMS0_BASIC = [
+    // label, key, unit, decimals
+    ['Napięcie całkowite', 'total_voltage', 'V', 2],
+    ['Prąd',                'current',       'A', 2],
+    ['Prąd grzania',        'heating_current','A',2],
+    ['Moc',                 'power',         'W', 0],
+    ['Temperatura 1',       'temperature_sensor_1','°C',1],
+    ['Balans (wartość)',    'balancing',     '',  0],
+  ];
+  const BMS1_BASIC = [
+    ['Napięcie całkowite', 'total_voltage', 'V', 2],
+    ['Prąd',                'current',       'A', 2],
+    ['Prąd grzania',        'heating_current','A',2],
+    ['Moc',                 'power',         'W', 0],
+    ['Moc ładowania',       'charging_power','W', 0],
+    ['Moc rozładowania',    'discharging_power','W',0],
+    ['Temperatura 1',       'temperature_sensor_1','°C',1],
+  ];
+
+  // ===== Render
+  const nodes = {}; // id -> {el, decimals}
+  const holder = sel => document.querySelector(sel);
+
+  function addCard(box, id, label, unit){
     const card=document.createElement('div'); card.className='card';
     card.innerHTML=`<div class="title">${label}</div><div class="val"><span id="${id}">—</span>${unit?`<span class="unit">${unit}</span>`:''}</div>`;
     holder(box).appendChild(card);
-    nodes[id]={cfg:{type:'sensor', decimals}, el:document.getElementById(id)};
-  }
-  function addFlag(box, id, label){
-    const card=document.createElement('div'); card.className='card';
-    card.innerHTML=`<div class="title">${label}</div><div class="row"><span id="${id}" class="badge off">OFF</span></div>`;
-    holder(box).appendChild(card);
-    nodes[id]={cfg:{type:'binary'}, el:document.getElementById(id)};
+    nodes[id] = { el: document.getElementById(id) };
   }
   function addCell(box, id, label){
     const cell=document.createElement('div'); cell.className='cell';
     cell.innerHTML=`<div class="hdr"><span>${label}</span></div><div class="val"><span id="${id}">—</span><span class="unit">V</span></div>`;
     holder(box).appendChild(cell);
-    nodes[id]={cfg:{type:'sensor', decimals:3}, el:document.getElementById(id)};
-  }
-  function addText(box, id, label){
-    const card=document.createElement('div'); card.className='card';
-    card.innerHTML=`<div class="title">${label}</div><div id="${id}" class="text">—</div>`;
-    holder(box).appendChild(card);
-    nodes[id]={cfg:{type:'text'}, el:document.getElementById(id)};
+    nodes[id] = { el: document.getElementById(id) };
   }
 
-  // ===== Render BMS0
-  for(const [label,key,unit,dec] of SENSORS_BASIC) addSensor('#bms0_basic', 'b0_'+key, label, unit, dec);
-  for(const [label,key,unit,dec] of SENSORS_POWER) addSensor('#bms0_power', 'b0_'+key, label, unit, dec);
-  for(const [label,key] of FLAGS) addFlag('#bms0_flags', 'b0_'+key, label);
-  for(let i=1;i<=16;i++) addCell('#bms0_cells', `c0_${i}`, `C${i}`);
+  // BMS0 podstawowe
+  BMS0_BASIC.forEach(([label,key,unit,dec])=>{
+    const id = `b0_${key}`;
+    addCard('#bms0_basic', id, label, unit);
+    nodes[id].decimals = dec;
+  });
+  // BMS0 cele
+  for(let i=1;i<=16;i++){
+    const id = `c0_${i}`;
+    addCell('#bms0_cells', id, `C${i}`);
+    nodes[id].decimals = 3;
+  }
 
-  // ===== Render BMS1
-  for(const [label,key,unit,dec] of SENSORS_BASIC) addSensor('#bms1_basic', 'b1_'+key, label, unit, dec);
-  for(const [label,key,unit,dec] of SENSORS_POWER) addSensor('#bms1_power', 'b1_'+key, label, unit, dec);
-  for(const [label,key] of FLAGS) addFlag('#bms1_flags', 'b1_'+key, label);
-  for(let i=1;i<=16;i++) addCell('#bms1_cells', `c1_${i}`, `C${i}`);
+  // BMS1 podstawowe
+  BMS1_BASIC.forEach(([label,key,unit,dec])=>{
+    const id = `b1_${key}`;
+    addCard('#bms1_basic', id, label, unit);
+    nodes[id].decimals = dec;
+  });
+  // BMS1 cele
+  for(let i=1;i<=16;i++){
+    const id = `c1_${i}`;
+    addCell('#bms1_cells', id, `C${i}`);
+    nodes[id].decimals = 3;
+  }
 
-  // Teksty błędów
-  addText('#texts', 'b0_errors', 'BMS 0 błędy');
-  addText('#texts', 'b1_errors', 'BMS 1 błędy');
-
-  // ===== Subskrypcje MQTT
+  // ===== Subskrypcje
   const subs = [];
+  const addSub = (topic, id) => subs.push([topic, id]);
 
-  // helpery
-  const addSub = (topic,id) => subs.push([topic,id]);
-  const mapNum = v => { const m=String(v).match(/-?\d+(?:[.,]\d+)?/); return m?parseFloat(m[0].replace(',','.')):NaN; };
-  const fmt = (n,d=1)=> isNaN(n)?'—':(Math.round(n*10**d)/10**d).toFixed(d).replace('.',',');
+  // BMS0 podstawowe
+  BMS0_BASIC.forEach(([,key])=> addSub(sTopic('bms0', key), `b0_${key}`));
+  // BMS0 cele
+  for(let i=1;i<=16;i++) addSub(cellTopic('bms0', i), `c0_${i}`);
 
-  // BMS0 numeryczne / binarne
-  for(const [,key] of [...SENSORS_BASIC, ...SENSORS_POWER]){
-    addSub(topicS('bms0', key), 'b0_'+key);
-  }
-  for(const [,key] of FLAGS){
-    addSub(topicB('bms0', key), 'b0_'+key);
-  }
-  for(let i=1;i<=16;i++) addSub(topicS('bms0', `cell_voltage_${i}`), `c0_${i}`);
-  addSub(topicT('bms0','errors'), 'b0_errors');
+  // BMS1 podstawowe
+  BMS1_BASIC.forEach(([,key])=> addSub(sTopic('bms1', key), `b1_${key}`));
+  // BMS1 cele
+  for(let i=1;i<=16;i++) addSub(cellTopic('bms1', i), `c1_${i}`);
 
-  // BMS1 numeryczne / binarne
-  for(const [,key] of [...SENSORS_BASIC, ...SENSORS_POWER]){
-    addSub(topicS('bms1', key), 'b1_'+key);
-  }
-  for(const [,key] of FLAGS){
-    addSub(topicB('bms1', key), 'b1_'+key);
-  }
-  for(let i=1;i<=16;i++) addSub(topicS('bms1', `cell_voltage_${i}`), `c1_${i}`);
-  addSub(topicT('bms1','errors'), 'b1_errors');
+  // ===== Helpers
+  const parseNum=v=>{ const m=String(v).match(/-?\d+(?:[.,]\d+)?/); return m?parseFloat(m[0].replace(',','.')):NaN; };
+  const fmt=(n,d=1)=> isNaN(n)?'—':(Math.round(n*10**d)/10**d).toFixed(d).replace('.',',');
 
-  // MQTT klient
+  // ===== MQTT
   const client=mqtt.connect(SETTINGS.MQTT_WSS_URL,{clientId:'bms_'+Math.random().toString(16).slice(2)});
   client.on('connect',()=>{
     elMqtt.textContent='połączono';
@@ -224,28 +180,14 @@ function initApp(){
   client.on('error',e=>{ elMqtt.textContent='błąd MQTT (konsola)'; console.error(e); });
 
   client.on('message',(topic,payload)=>{
-    const val = payload.toString();
-    const sub = subs.find(s=>s[0]===topic);
-    if(!sub) return;
-    const id = sub[1];
-    const node = nodes[id];
-    if(!node) return;
+    const s = payload.toString();
+    const rec = subs.find(([tp])=>tp===topic);
+    if(!rec) return;
+    const id = rec[1];
+    const node = nodes[id]; if(!node) return;
 
-    if(node.cfg.type==='text'){
-      node.el.textContent = val && val!=='unknown' ? val : '—';
-      return;
-    }
-    if(node.cfg.type==='binary'){
-      const s=String(val).trim().toUpperCase();
-      const on = (s==='ON' || s==='TRUE' || s==='1');
-      node.el.textContent = on ? 'ON' : 'OFF';
-      node.el.classList.toggle('on', on);
-      node.el.classList.toggle('off', !on);
-      return;
-    }
-    // sensor (liczba)
-    const n = mapNum(val);
-    node.el.textContent = fmt(n, node.cfg.decimals ?? 1);
+    const val = parseNum(s);
+    node.el.textContent = fmt(val, node.decimals ?? 1);
   });
 }
 </script>
