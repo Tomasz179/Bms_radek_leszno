@@ -3,28 +3,20 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>JK-BMS Radek Leszno – MQTT</title>
+  <title>JK-BMS – Napięcia Cel (32)</title>
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
     :root{ --maxw:1200px } *{box-sizing:border-box}
     body{font-family:Arial,system-ui,Segoe UI; background:#f6f7fb; margin:0; padding:16px; color:#111}
-    h1{ text-align:center; margin:8px 0 14px; font-size:24px }
+    h1{ text-align:center; margin:8px 0 14px; font-size:22px }
     .wrap{ max-width:var(--maxw); margin:0 auto }
     .status{ text-align:center; font-size:12px; color:#555; margin-bottom:12px }
     .section{ margin:16px 0 10px; font-weight:700; color:#444; border-left:4px solid #0d6efd; padding-left:8px }
-    .grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px }
-    .card{ background:#fff; border-radius:12px; padding:14px; box-shadow:0 3px 12px rgba(0,0,0,.06) }
-    .title{ font-weight:700; margin-bottom:6px }
+    .cells{ display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:10px }
+    .cell{ background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:10px; box-shadow:0 2px 8px rgba(0,0,0,.04) }
+    .cell .hdr{ display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:12px; color:#666 }
     .val{ font-size:20px; font-weight:700 }
     .unit{ color:#666; margin-left:4px; font-weight:500 }
-    .cells{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px }
-    .cell{ background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:10px }
-    .cell .n{ color:#666; font-size:12px; }
-    .row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px }
-    .badge{ display:inline-block; padding:4px 8px; border-radius:999px; font-size:12px; font-weight:700; }
-    .on{ background:#e9fff4; color:#0a7; border:1px solid #9cdebf }
-    .off{ background:#f3f4f6; color:#444; border:1px solid #d0d5dd }
-    .text{ font-size:13px; color:#333; white-space:pre-wrap }
 
     /* Hasło */
     #lock{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:#0b0f1a; z-index:9999 }
@@ -39,7 +31,7 @@
   <!-- BLOKADA -->
   <div id="lock">
     <div class="box">
-      <h3>🔐 JK-BMS – dostęp</h3>
+      <h3>🔐 JK-BMS – napięcia cel</h3>
       <input id="pwd" type="password" placeholder="Hasło" autocomplete="current-password" />
       <button id="unlock">Odblokuj</button>
       <div id="msg"></div>
@@ -49,29 +41,14 @@
   <!-- APP -->
   <div id="app" style="display:none">
     <div class="wrap">
-      <h1>🔋 JK-BMS Radek Leszno</h1>
+      <h1>🔋 Napięcia cel (BMS0 + BMS1)</h1>
       <div class="status">MQTT: <b id="mqtt">inicjalizacja…</b></div>
 
-      <div class="section">BMS 0 – podstawowe</div>
-      <div id="bms0_basic" class="grid"></div>
+      <div class="section">BMS 0 – 16 cel</div>
+      <div id="cells0" class="cells"></div>
 
-      <div class="section">BMS 0 – stany</div>
-      <div id="bms0_flags" class="grid"></div>
-
-      <div class="section">BMS 0 – cele (V)</div>
-      <div id="bms0_cells" class="cells"></div>
-
-      <div class="section">BMS 1 – podstawowe</div>
-      <div id="bms1_basic" class="grid"></div>
-
-      <div class="section">BMS 1 – stany</div>
-      <div id="bms1_flags" class="grid"></div>
-
-      <div class="section">BMS 1 – cele (V)</div>
-      <div id="bms1_cells" class="cells"></div>
-
-      <div class="section">Komunikaty</div>
-      <div id="texts" class="grid"></div>
+      <div class="section">BMS 1 – 16 cel</div>
+      <div id="cells1" class="cells"></div>
     </div>
   </div>
 
@@ -81,56 +58,11 @@ const SETTINGS = {
   PASSWORD: "tomek1425",
   MQTT_WSS_URL: "wss://broker.hivemq.com:8884/mqtt",
   PREFIX: "bms_radek_leszno",
-  DEV: "jk-bms-radek-leszno"           // nazwa urządzenia w tematach
+  DEV: "jk-bms-radek-leszno" // z YAML
 };
 
-/* ===================== NARZĘDZIA TEMATÓW ===================== */
-const t = {
-  s: (bms, key) => `${SETTINGS.PREFIX}/sensor/${SETTINGS.DEV}_${bms}_${key}/state`,
-  b: (bms, key) => `${SETTINGS.PREFIX}/binary_sensor/${SETTINGS.DEV}_${bms}_${key}/state`,
-  t: (bms, key) => `${SETTINGS.PREFIX}/text_sensor/${SETTINGS.DEV}_${bms}_${key}/state`,
-};
-
-/* ===================== KONFIG KAFELKÓW ===================== */
-const CONFIG = [
-  // ===== BMS 0 – sensory podstawowe =====
-  { box:'#bms0_basic',  type:'sensor', id:'b0_v',   label:'Napięcie całkowite', unit:'V', decimals:2, topic: t.s('bms0','total_voltage') },
-  { box:'#bms0_basic',  type:'sensor', id:'b0_a',   label:'Prąd',               unit:'A', decimals:2, topic: t.s('bms0','current') },
-  { box:'#bms0_basic',  type:'sensor', id:'b0_p',   label:'Moc',                unit:'W', decimals:0, topic: t.s('bms0','power') },
-  { box:'#bms0_basic',  type:'sensor', id:'b0_soc', label:'Naładowanie',        unit:'%', decimals:1, topic: t.s('bms0','state_of_charge') },
-  { box:'#bms0_basic',  type:'sensor', id:'b0_t1',  label:'Temp. czujnik 1',    unit:'°C',decimals:1, topic: t.s('bms0','temperature_sensor_1') },
-  { box:'#bms0_basic',  type:'sensor', id:'b0_pt',  label:'Temp. MOSFET',       unit:'°C',decimals:1, topic: t.s('bms0','power_tube_temperature') },
-
-  // ===== BMS 0 – flagi =====
-  { box:'#bms0_flags',  type:'binary', id:'b0_chg', label:'Ładowanie',    topic: t.b('bms0','charging') },
-  { box:'#bms0_flags',  type:'binary', id:'b0_dis', label:'Rozładowanie', topic: t.b('bms0','discharging') },
-  { box:'#bms0_flags',  type:'binary', id:'b0_bal', label:'Balansowanie', topic: t.b('bms0','balancing') },
-  { box:'#bms0_flags',  type:'binary', id:'b0_onl', label:'Online',       topic: t.b('bms0','online_status') },
-
-  // ===== BMS 1 – sensory podstawowe =====
-  { box:'#bms1_basic',  type:'sensor', id:'b1_v',   label:'Napięcie całkowite', unit:'V', decimals:2, topic: t.s('bms1','total_voltage') },
-  { box:'#bms1_basic',  type:'sensor', id:'b1_a',   label:'Prąd',               unit:'A', decimals:2, topic: t.s('bms1','current') },
-  { box:'#bms1_basic',  type:'sensor', id:'b1_p',   label:'Moc',                unit:'W', decimals:0, topic: t.s('bms1','power') },
-  { box:'#bms1_basic',  type:'sensor', id:'b1_soc', label:'Naładowanie',        unit:'%', decimals:1, topic: t.s('bms1','state_of_charge') },
-  { box:'#bms1_basic',  type:'sensor', id:'b1_t1',  label:'Temp. czujnik 1',    unit:'°C',decimals:1, topic: t.s('bms1','temperature_sensor_1') },
-  { box:'#bms1_basic',  type:'sensor', id:'b1_pt',  label:'Temp. MOSFET',       unit:'°C',decimals:1, topic: t.s('bms1','power_tube_temperature') },
-
-  // ===== BMS 1 – flagi =====
-  { box:'#bms1_flags',  type:'binary', id:'b1_chg', label:'Ładowanie',    topic: t.b('bms1','charging') },
-  { box:'#bms1_flags',  type:'binary', id:'b1_dis', label:'Rozładowanie', topic: t.b('bms1','discharging') },
-  { box:'#bms1_flags',  type:'binary', id:'b1_bal', label:'Balansowanie', topic: t.b('bms1','balancing') },
-  { box:'#bms1_flags',  type:'binary', id:'b1_onl', label:'Online',       topic: t.b('bms1','online_status') },
-
-  // ===== Teksty / błędy =====
-  { box:'#texts', type:'text', id:'b0_err', label:'BMS 0 błędy', topic: t.t('bms0','errors') },
-  { box:'#texts', type:'text', id:'b1_err', label:'BMS 1 błędy', topic: t.t('bms1','errors') },
-];
-
-// dodajemy 16 cel na BMS0 i BMS1 dynamicznie
-for(let i=1;i<=16;i++){
-  CONFIG.push({ box:'#bms0_cells', type:'cell', id:`c0_${i}`, label:`C${i}`, unit:'V', decimals:3, topic: t.s('bms0',`cell_voltage_${i}`) });
-  CONFIG.push({ box:'#bms1_cells', type:'cell', id:`c1_${i}`, label:`C${i}`, unit:'V', decimals:3, topic: t.s('bms1',`cell_voltage_${i}`) });
-}
+/* ===================== TEMATY MQTT ===================== */
+const topicCell = (bms, idx) => `${SETTINGS.PREFIX}/sensor/${SETTINGS.DEV}_${bms}_cell_voltage_${idx}/state`;
 
 /* ===================== BLOKADA HASŁA ===================== */
 (function(){
@@ -145,77 +77,46 @@ for(let i=1;i<=16;i++){
 /* ===================== APP ===================== */
 function initApp(){
   const elMqtt=document.getElementById('mqtt');
-  const holders = {};  // cache kontenerów
-  const nodes = {};    // id -> {cfg, el}
+  const cells0=document.getElementById('cells0');
+  const cells1=document.getElementById('cells1');
 
-  function holder(sel){ return holders[sel] ?? (holders[sel]=document.querySelector(sel)); }
-  function mkCardSensor(c){
-    const card=document.createElement('div'); card.className='card';
-    card.innerHTML=`<div class="title">${c.label}</div><div class="val"><span id="${c.id}">—</span>${c.unit?`<span class="unit">${c.unit}</span>`:''}</div>`;
-    holder(c.box).appendChild(card);
-    nodes[c.id]={cfg:c, el:document.getElementById(c.id)};
+  // render 32 kafelki
+  const nodes = {}; // id -> {el}
+  function makeCell(container, id, label){
+    const div=document.createElement('div'); div.className='cell';
+    div.innerHTML = `<div class="hdr"><span>${label}</span></div>
+                     <div class="val"><span id="${id}">—</span><span class="unit">V</span></div>`;
+    container.appendChild(div);
+    nodes[id] = { el: document.getElementById(id) };
   }
-  function mkCardBinary(c){
-    const card=document.createElement('div'); card.className='card';
-    card.innerHTML=`<div class="title">${c.label}</div><div class="row"><span id="${c.id}" class="badge off">OFF</span></div>`;
-    holder(c.box).appendChild(card);
-    nodes[c.id]={cfg:c, el:document.getElementById(c.id)};
-  }
-  function mkCardText(c){
-    const card=document.createElement('div'); card.className='card';
-    card.innerHTML=`<div class="title">${c.label}</div><div id="${c.id}" class="text">—</div>`;
-    holder(c.box).appendChild(card);
-    nodes[c.id]={cfg:c, el:document.getElementById(c.id)};
-  }
-  function mkCell(c){
-    const cell=document.createElement('div'); cell.className='cell';
-    cell.innerHTML=`<div class="n">${c.label}</div><div class="val"><span id="${c.id}">—</span><span class="unit">V</span></div>`;
-    holder(c.box).appendChild(cell);
-    nodes[c.id]={cfg:c, el:document.getElementById(c.id)};
-  }
+  for(let i=1;i<=16;i++) makeCell(cells0, `c0_${i}`, `C${i}`);
+  for(let i=1;i<=16;i++) makeCell(cells1, `c1_${i}`, `C${i}`);
 
-  // render
-  for(const c of CONFIG){
-    if(c.type==='sensor') mkCardSensor(c);
-    else if(c.type==='binary') mkCardBinary(c);
-    else if(c.type==='text') mkCardText(c);
-    else if(c.type==='cell') mkCell(c);
-  }
+  // map: topic -> nodeId
+  const topicMap = {};
+  for(let i=1;i<=16;i++) topicMap[topicCell('bms0', i)] = `c0_${i}`;
+  for(let i=1;i<=16;i++) topicMap[topicCell('bms1', i)] = `c1_${i}`;
 
+  // helpers
   const parseNum=v=>{ const m=String(v).match(/-?\d+(?:[.,]\d+)?/); return m?parseFloat(m[0].replace(',','.')):NaN; };
-  const fmt=(n,d=1)=> isNaN(n)?'—':(Math.round(n*10**d)/10**d).toFixed(d).replace('.',',');
+  const fmt=(n,d=3)=> isNaN(n)?'—':(Math.round(n*10**d)/10**d).toFixed(d).replace('.',',');
 
-  // MQTT
-  const client=mqtt.connect(SETTINGS.MQTT_WSS_URL,{clientId:'bms_'+Math.random().toString(16).slice(2)});
+  // MQTT client
+  const client=mqtt.connect(SETTINGS.MQTT_WSS_URL,{clientId:'cells_'+Math.random().toString(16).slice(2)});
   client.on('connect',()=>{
     elMqtt.textContent='połączono';
-    CONFIG.forEach(c => client.subscribe(c.topic));
+    // subskrypcje wszystkich 32 tematów
+    Object.keys(topicMap).forEach(tp => client.subscribe(tp));
   });
   client.on('reconnect',()=> elMqtt.textContent='ponowne łączenie…');
   client.on('close',()=> elMqtt.textContent='rozłączono');
   client.on('error',e=>{ elMqtt.textContent='błąd MQTT (konsola)'; console.error(e); });
 
   client.on('message',(topic,payload)=>{
-    const val=payload.toString();
-    for(const id in nodes){
-      const n=nodes[id], c=n.cfg;
-      if(topic!==c.topic) continue;
-
-      if(c.type==='sensor' || c.type==='cell'){
-        const v=parseNum(val);
-        n.el.textContent = fmt(v, c.decimals ?? 1);
-      }
-      if(c.type==='binary'){
-        const s=String(val).trim().toUpperCase();
-        const on = (s==='ON' || s==='TRUE' || s==='1');
-        n.el.textContent = on ? 'ON' : 'OFF';
-        n.el.classList.toggle('on', on);
-        n.el.classList.toggle('off', !on);
-      }
-      if(c.type==='text'){
-        n.el.textContent = val && val!=='unknown' ? val : '—';
-      }
-    }
+    const nodeId = topicMap[topic];
+    if(!nodeId) return;
+    const val = parseNum(payload.toString());
+    nodes[nodeId].el.textContent = fmt(val, 3);
   });
 }
 </script>
