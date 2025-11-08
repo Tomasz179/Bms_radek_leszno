@@ -2,190 +2,100 @@
 <html lang="pl">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>JK-BMS – podgląd z MQTT</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BMS Radek Leszno</title>
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
-    :root{ --maxw:1200px } *{box-sizing:border-box}
-    body{font-family:Arial,system-ui,Segoe UI; background:#f6f7fb; margin:0; padding:16px; color:#111}
-    h1{ text-align:center; margin:8px 0 14px; font-size:22px }
-    .wrap{ max-width:var(--maxw); margin:0 auto }
-    .status{ text-align:center; font-size:12px; color:#555; margin-bottom:12px }
-    .section{ margin:16px 0 10px; font-weight:700; color:#444; border-left:4px solid #0d6efd; padding-left:8px }
-    .grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px }
-    .cells{ display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:10px }
-    .card{ background:#fff; border-radius:12px; padding:14px; box-shadow:0 3px 12px rgba(0,0,0,.06) }
-    .title{ font-weight:700; margin-bottom:6px }
-    .val{ font-size:20px; font-weight:700 }
-    .unit{ color:#666; margin-left:4px; font-weight:500 }
-    .cell{ background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:10px; box-shadow:0 2px 8px rgba(0,0,0,.04) }
-    .cell .hdr{ display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:12px; color:#666 }
-
-    /* Hasło */
-    #lock{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:#0b0f1a; z-index:9999 }
-    #lock .box{ background:#fff; padding:18px; border-radius:12px; width:320px; text-align:center; box-shadow:0 10px 30px rgba(0,0,0,.25) }
-    #lock input,#lock button{ width:100%; padding:10px; border-radius:8px }
-    #lock input{ border:1px solid #ddd; margin:8px 0 }
-    #lock button{ border:none; background:#0d6efd; color:#fff; cursor:pointer }
-    #msg{ color:#c00; min-height:1.2em; font-size:13px }
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #111;
+      color: #0f0;
+      text-align: center;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      color: #00ff99;
+      margin-bottom: 20px;
+    }
+    .container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+    }
+    .card {
+      background-color: #222;
+      border: 1px solid #0f0;
+      border-radius: 10px;
+      padding: 10px;
+      width: 160px;
+      text-align: center;
+    }
+    .card h3 {
+      margin: 5px 0;
+      font-size: 14px;
+      color: #0ff;
+    }
+    .card p {
+      margin: 0;
+      font-size: 16px;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
-  <!-- BLOKADA -->
-  <div id="lock">
-    <div class="box">
-      <h3>🔐 JK-BMS – dostęp</h3>
-      <input id="pwd" type="password" placeholder="Hasło" autocomplete="current-password" />
-      <button id="unlock">Odblokuj</button>
-      <div id="msg"></div>
-    </div>
-  </div>
+  <h1>BMS Radek Leszno</h1>
+  <div id="data" class="container"></div>
 
-  <!-- APP -->
-  <div id="app" style="display:none">
-    <div class="wrap">
-      <h1>🔋 JK-BMS (bms0 + bms1)</h1>
-      <div class="status">MQTT: <b id="mqtt">inicjalizacja…</b></div>
+  <script>
+    // --- MQTT KONFIGURACJA ---
+    const MQTT_URL = "wss://broker.hivemq.com:8884/mqtt";
+    const MQTT_USER = null;
+    const MQTT_PASS = null;
+    const PREFIX = "bms_radek_leszno";
+    const clientId = "bms_web_" + Math.random().toString(16).substr(2, 8);
 
-      <div class="section">BMS 0 – podstawowe</div>
-      <div id="bms0_basic" class="grid"></div>
+    // Połączenie z brokerem
+    const client = mqtt.connect(MQTT_URL, {
+      clientId,
+      username: MQTT_USER,
+      password: MQTT_PASS,
+      clean: true,
+      reconnectPeriod: 3000
+    });
 
-      <div class="section">BMS 0 – cele (16×)</div>
-      <div id="bms0_cells" class="cells"></div>
+    const dataDiv = document.getElementById("data");
+    const values = {};
 
-      <div class="section">BMS 1 – podstawowe</div>
-      <div id="bms1_basic" class="grid"></div>
+    client.on("connect", () => {
+      console.log("✅ Połączono z brokerem MQTT");
+      client.subscribe(`${PREFIX}/#`);
+    });
 
-      <div class="section">BMS 1 – cele (16×)</div>
-      <div id="bms1_cells" class="cells"></div>
-    </div>
-  </div>
+    client.on("message", (topic, message) => {
+      const msg = message.toString();
+      const short = topic.replace(`${PREFIX}/`, "");
+      const key = short.replace(/\//g, "_");
 
-<script>
-/* ===================== USTAWIENIA ===================== */
-const SETTINGS = {
-  PASSWORD: "tomek1425",
-  MQTT_WSS_URL: "wss://broker.hivemq.com:8884/mqtt",
-  PREFIX: "bms_radek_leszno",
-  DEV: "jk-bms-radek-leszno"
-};
+      values[key] = msg;
+      render();
+    });
 
-/* ===================== TEMATY MQTT ===================== */
-const sTopic = (bms, key) => `${SETTINGS.PREFIX}/sensor/${SETTINGS.DEV}_${bms}_${key}/state`;
-const cellTopic = (bms, idx) => sTopic(bms, `cell_voltage_${idx}`);
-
-/* ===================== BLOKADA HASŁA ===================== */
-(function(){
-  const lock=document.getElementById('lock'), app=document.getElementById('app');
-  const pwd=document.getElementById('pwd'), msg=document.getElementById('msg');
-  const ok=()=>{ lock.style.display='none'; app.style.display='block'; initApp(); };
-  document.getElementById('unlock').onclick=()=> (pwd.value||'').trim()===SETTINGS.PASSWORD ? ok() : (msg.textContent='❌ Złe hasło');
-  pwd.addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('unlock').click(); });
-  const qp=new URLSearchParams(location.search); if(qp.get('pass')){ pwd.value=qp.get('pass'); document.getElementById('unlock').click(); }
-})();
-
-/* ===================== APP ===================== */
-function initApp(){
-  const elMqtt=document.getElementById('mqtt');
-
-  // ===== Definicje kafelków wg YAML =====
-  const BMS0_BASIC = [
-    ['Napięcie całkowite', 'total_voltage', 'V', 2],
-    ['Prąd',                'current',       'A', 2],
-    ['Moc',                 'power',         'W', 0],
-    ['Temperatura 1',       'temperature_sensor_1','°C',1],
-    ['Poziom naładowania',  'state_of_charge','%',1],
-  ];
-  const BMS1_BASIC = [
-    ['Napięcie całkowite', 'total_voltage', 'V', 2],
-    ['Prąd',                'current',       'A', 2],
-    ['Moc',                 'power',         'W', 0],
-    ['Temperatura 1',       'temperature_sensor_1','°C',1],
-    ['Poziom naładowania',  'state_of_charge','%',1],
-  ];
-
-  // ===== Render
-  const nodes = {}; // id -> {el, decimals}
-  const holder = sel => document.querySelector(sel);
-
-  function addCard(box, id, label, unit){
-    const card=document.createElement('div'); card.className='card';
-    card.innerHTML=`<div class="title">${label}</div><div class="val"><span id="${id}">—</span>${unit?`<span class="unit">${unit}</span>`:''}</div>`;
-    holder(box).appendChild(card);
-    nodes[id] = { el: document.getElementById(id) };
-  }
-  function addCell(box, id, label){
-    const cell=document.createElement('div'); cell.className='cell';
-    cell.innerHTML=`<div class="hdr"><span>${label}</span></div><div class="val"><span id="${id}">—</span><span class="unit">V</span></div>`;
-    holder(box).appendChild(cell);
-    nodes[id] = { el: document.getElementById(id) };
-  }
-
-  // BMS0 podstawowe
-  BMS0_BASIC.forEach(([label,key,unit,dec])=>{
-    const id = `b0_${key}`;
-    addCard('#bms0_basic', id, label, unit);
-    nodes[id].decimals = dec;
-  });
-  // BMS0 cele
-  for(let i=1;i<=16;i++){
-    const id = `c0_${i}`;
-    addCell('#bms0_cells', id, `C${i}`);
-    nodes[id].decimals = 3;
-  }
-
-  // BMS1 podstawowe
-  BMS1_BASIC.forEach(([label,key,unit,dec])=>{
-    const id = `b1_${key}`;
-    addCard('#bms1_basic', id, label, unit);
-    nodes[id].decimals = dec;
-  });
-  // BMS1 cele
-  for(let i=1;i<=16;i++){
-    const id = `c1_${i}`;
-    addCell('#bms1_cells', id, `C${i}`);
-    nodes[id].decimals = 3;
-  }
-
-  // ===== Subskrypcje
-  const subs = [];
-  const addSub = (topic, id) => subs.push([topic, id]);
-
-  // BMS0 podstawowe
-  BMS0_BASIC.forEach(([,key])=> addSub(sTopic('bms0', key), `b0_${key}`));
-  // BMS0 cele
-  for(let i=1;i<=16;i++) addSub(cellTopic('bms0', i), `c0_${i}`);
-
-  // BMS1 podstawowe
-  BMS1_BASIC.forEach(([,key])=> addSub(sTopic('bms1', key), `b1_${key}`));
-  // BMS1 cele
-  for(let i=1;i<=16;i++) addSub(cellTopic('bms1', i), `c1_${i}`);
-
-  // ===== Helpers
-  const parseNum=v=>{ const m=String(v).match(/-?\d+(?:[.,]\d+)?/); return m?parseFloat(m[0].replace(',','.')):NaN; };
-  const fmt=(n,d=1)=> isNaN(n)?'—':(Math.round(n*10**d)/10**d).toFixed(d).replace('.',',');
-
-  // ===== MQTT
-  const client=mqtt.connect(SETTINGS.MQTT_WSS_URL,{clientId:'bms_'+Math.random().toString(16).slice(2)});
-  client.on('connect',()=>{
-    elMqtt.textContent='połączono';
-    subs.forEach(([tp])=>client.subscribe(tp));
-  });
-  client.on('reconnect',()=> elMqtt.textContent='ponowne łączenie…');
-  client.on('close',()=> elMqtt.textContent='rozłączono');
-  client.on('error',e=>{ elMqtt.textContent='błąd MQTT (konsola)'; console.error(e); });
-
-  client.on('message',(topic,payload)=>{
-    const s = payload.toString();
-    const rec = subs.find(([tp])=>tp===topic);
-    if(!rec) return;
-    const id = rec[1];
-    const node = nodes[id]; if(!node) return;
-
-    const val = parseNum(s);
-    node.el.textContent = fmt(val, node.decimals ?? 1);
-  });
-}
-</script>
+    function render() {
+      dataDiv.innerHTML = "";
+      for (const [key, value] of Object.entries(values)) {
+        const card = document.createElement("div");
+        card.className = "card";
+        const title = key
+          .replace("sensor_jk_bms_radek_leszno_bms0_", "BMS 0 - ")
+          .replace("sensor_jk_bms_radek_leszno_bms1_", "BMS 1 - ")
+          .replace("_state", "")
+          .replace(/_/g, " ");
+        card.innerHTML = `<h3>${title}</h3><p>${value}</p>`;
+        dataDiv.appendChild(card);
+      }
+    }
+  </script>
 </body>
 </html>
