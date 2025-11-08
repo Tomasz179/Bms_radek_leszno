@@ -2,100 +2,180 @@
 <html lang="pl">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>BMS Radek Leszno</title>
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background-color: #111;
-      color: #0f0;
-      text-align: center;
-      margin: 0;
-      padding: 20px;
+    :root{
+      --bg:#0b0f13; --card:#121820; --text:#e9f1ff; --muted:#8aa0b3;
+      --a:#7dd3fc; --b:#34d399; --warn:#fbbf24; --grid:#223041;
     }
-    h1 {
-      color: #00ff99;
-      margin-bottom: 20px;
-    }
-    .container {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 10px;
-    }
-    .card {
-      background-color: #222;
-      border: 1px solid #0f0;
-      border-radius: 10px;
-      padding: 10px;
-      width: 160px;
-      text-align: center;
-    }
-    .card h3 {
-      margin: 5px 0;
-      font-size: 14px;
-      color: #0ff;
-    }
-    .card p {
-      margin: 0;
-      font-size: 16px;
-      font-weight: bold;
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    header{padding:20px 16px;text-align:center;border-bottom:1px solid var(--grid)}
+    h1{margin:6px 0 4px;font-weight:800;letter-spacing:.3px}
+    .status{font-size:13px;color:var(--muted)}
+    .wrap{max-width:1100px;margin:18px auto;padding:0 14px;display:grid;gap:14px}
+    .row{display:grid;gap:14px}
+    .row.cols-2{grid-template-columns:1fr 1fr}
+    .card{background:var(--card);border:1px solid var(--grid);border-radius:14px;padding:14px}
+    .title{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+    .title h2{font-size:18px;margin:0;font-weight:800}
+    .pill{font-size:12px;color:#0b1220;background:var(--a);padding:4px 8px;border-radius:999px}
+    .kpi-grid{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:10px}
+    .kpi{background:#0f1722;border:1px solid var(--grid);border-radius:12px;padding:10px}
+    .kpi .label{font-size:12px;color:var(--muted)}
+    .kpi .val{font-size:20px;font-weight:800;margin-top:2px}
+    .cells{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
+    .cell{background:#0f1722;border:1px solid var(--grid);border-radius:10px;padding:8px;text-align:center}
+    .cell .idx{font-size:11px;color:var(--muted)}
+    .cell .v{font-size:16px;font-weight:700}
+    .ok{color:var(--b)} .warn{color:var(--warn)}
+    @media (max-width:900px){
+      .row.cols-2{grid-template-columns:1fr}
+      .kpi-grid{grid-template-columns:repeat(2,1fr)}
+      .cells{grid-template-columns:repeat(4,1fr)}
     }
   </style>
 </head>
 <body>
-  <h1>BMS Radek Leszno</h1>
-  <div id="data" class="container"></div>
+  <header>
+    <h1>BMS Radek Leszno</h1>
+    <div class="status">MQTT: <span id="mqttStatus">łączenie…</span></div>
+  </header>
 
-  <script>
-    // --- MQTT KONFIGURACJA ---
-    const MQTT_URL = "wss://broker.hivemq.com:8884/mqtt";
-    const MQTT_USER = null;
-    const MQTT_PASS = null;
-    const PREFIX = "bms_radek_leszno";
-    const clientId = "bms_web_" + Math.random().toString(16).substr(2, 8);
+  <main class="wrap">
+    <!-- BMS 0 KPIs -->
+    <section class="card">
+      <div class="title"><h2>BMS 0 – Podsumowanie</h2><span class="pill">jk-bms-radek-leszno bms0</span></div>
+      <div class="kpi-grid" id="kpi0"></div>
+    </section>
 
-    // Połączenie z brokerem
-    const client = mqtt.connect(MQTT_URL, {
-      clientId,
-      username: MQTT_USER,
-      password: MQTT_PASS,
-      clean: true,
-      reconnectPeriod: 3000
+    <!-- BMS 0 Cells -->
+    <section class="card">
+      <div class="title"><h2>BMS 0 – Napięcia celi</h2><span class="pill">16 celi</span></div>
+      <div class="cells" id="cells0"></div>
+    </section>
+
+    <!-- BMS 1 KPIs -->
+    <section class="card">
+      <div class="title"><h2>BMS 1 – Podsumowanie</h2><span class="pill">jk-bms-radek-leszno bms1</span></div>
+      <div class="kpi-grid" id="kpi1"></div>
+    </section>
+
+    <!-- BMS 1 Cells -->
+    <section class="card">
+      <div class="title"><h2>BMS 1 – Napięcia celi</h2><span class="pill">16 celi</span></div>
+      <div class="cells" id="cells1"></div>
+    </section>
+  </main>
+
+<script>
+/* === KONFIGURACJA MQTT === */
+const MQTT_URL = "wss://broker.hivemq.com:8884/mqtt";
+const PREFIX   = "bms_radek_leszno";
+const clientId = "bmsweb_" + Math.random().toString(16).slice(2,10);
+
+/* === POMOCNICZE === */
+const fmt = (n, d=1) => isFinite(n) ? (Math.round(n*10**d)/10**d).toFixed(d).replace(".", ",") : "—";
+const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"");
+const base0 = "jk-bms-radek-leszno bms0";
+const base1 = "jk-bms-radek-leszno bms1";
+
+/* Mapy KPI (co pokazujemy) */
+const KPI_DEF = {
+  bms0: [
+    { key: "total voltage",    label: "Total voltage",  unit:"V",  dec:1 },
+    { key: "current",          label: "Current",        unit:"A",  dec:1 },
+    { key: "power",            label: "Power",          unit:"W",  dec:0 },
+    { key: "temperature sensor 1", label: "Temp 1",     unit:"°C", dec:1 },
+    { key: "state of charge",  label: "SOC",            unit:"%",  dec:0 },
+  ],
+  bms1: [
+    { key: "total voltage",    label: "Total voltage",  unit:"V",  dec:1 },
+    { key: "current",          label: "Current",        unit:"A",  dec:1 },
+    { key: "power",            label: "Power",          unit:"W",  dec:0 },
+    { key: "temperature sensor 1", label: "Temp 1",     unit:"°C", dec:1 },
+    { key: "state of charge",  label: "SOC",            unit:"%",  dec:0 },
+  ]
+};
+/* Klucze celi */
+const CELLS0 = Array.from({length:16},(_,i)=> `cell voltage ${i+1}`);
+const CELLS1 = Array.from({length:16},(_,i)=> `cell voltage ${i+1}`);
+
+/* Budujemy pełne tematy MQTT */
+function topicSensor(base, key){ return `${PREFIX}/sensor/${slug(base+" "+key)}/state`; }
+const TOPICS = [];
+KPI_DEF.bms0.forEach(d => TOPICS.push(topicSensor(base0,d.key)));
+KPI_DEF.bms1.forEach(d => TOPICS.push(topicSensor(base1,d.key)));
+CELLS0.forEach(k => TOPICS.push(topicSensor(base0,k)));
+CELLS1.forEach(k => TOPICS.push(topicSensor(base1,k)));
+
+/* Stan wartości */
+const state = {};
+TOPICS.forEach(t => state[t] = null);
+
+/* Renderery */
+const kpi0 = document.getElementById("kpi0");
+const kpi1 = document.getElementById("kpi1");
+const cells0 = document.getElementById("cells0");
+const cells1 = document.getElementById("cells1");
+
+function renderKPIs(){
+  function section(el, defs, base){
+    el.innerHTML = "";
+    defs.forEach(d=>{
+      const t = topicSensor(base, d.key);
+      const num = Number(String(state[t]).replace(",","."));      
+      const div = document.createElement("div");
+      div.className="kpi";
+      div.innerHTML = `<div class="label">${d.label}</div><div class="val">${fmt(num,d.dec)} <span style="font-size:12px;color:var(--muted)">${d.unit}</span></div>`;
+      el.appendChild(div);
     });
+  }
+  section(kpi0, KPI_DEF.bms0, base0);
+  section(kpi1, KPI_DEF.bms1, base1);
+}
 
-    const dataDiv = document.getElementById("data");
-    const values = {};
-
-    client.on("connect", () => {
-      console.log("✅ Połączono z brokerem MQTT");
-      client.subscribe(`${PREFIX}/#`);
+function renderCells(){
+  function section(el, cells, base){
+    el.innerHTML = "";
+    cells.forEach((k,idx)=>{
+      const t = topicSensor(base, k);
+      const v = Number(String(state[t]).replace(",","."));      
+      const div = document.createElement("div");
+      div.className = "cell";
+      const cls = (isFinite(v) && v>0 && (v<3.1 || v>3.6)) ? "warn" : "ok";
+      div.innerHTML = `<div class="idx">#${idx+1}</div><div class="v ${cls}">${fmt(v,3)} V</div>`;
+      el.appendChild(div);
     });
+  }
+  section(cells0, CELLS0, base0);
+  section(cells1, CELLS1, base1);
+}
 
-    client.on("message", (topic, message) => {
-      const msg = message.toString();
-      const short = topic.replace(`${PREFIX}/`, "");
-      const key = short.replace(/\//g, "_");
+/* === MQTT === */
+const statusEl = document.getElementById("mqttStatus");
+const client = mqtt.connect(MQTT_URL, {clientId, clean:true, reconnectPeriod:3000});
 
-      values[key] = msg;
-      render();
-    });
+client.on("connect", ()=>{
+  statusEl.textContent = "połączono";
+  client.subscribe(TOPICS);
+});
 
-    function render() {
-      dataDiv.innerHTML = "";
-      for (const [key, value] of Object.entries(values)) {
-        const card = document.createElement("div");
-        card.className = "card";
-        const title = key
-          .replace("sensor_jk_bms_radek_leszno_bms0_", "BMS 0 - ")
-          .replace("sensor_jk_bms_radek_leszno_bms1_", "BMS 1 - ")
-          .replace("_state", "")
-          .replace(/_/g, " ");
-        card.innerHTML = `<h3>${title}</h3><p>${value}</p>`;
-        dataDiv.appendChild(card);
-      }
-    }
-  </script>
+client.on("reconnect", ()=> statusEl.textContent="ponawiam…");
+client.on("close", ()=> statusEl.textContent="rozłączono");
+client.on("error", ()=> statusEl.textContent="błąd połączenia");
+
+client.on("message", (topic, payload)=>{
+  state[topic] = payload.toString();
+  renderKPIs();
+  renderCells();
+});
+
+/* start */
+renderKPIs();
+renderCells();
+</script>
 </body>
 </html>
