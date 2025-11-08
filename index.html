@@ -2,180 +2,241 @@
 <html lang="pl">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>BMS Radek Leszno</title>
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
     :root{
-      --bg:#0b0f13; --card:#121820; --text:#e9f1ff; --muted:#8aa0b3;
-      --a:#7dd3fc; --b:#34d399; --warn:#fbbf24; --grid:#223041;
+      --bg:#0d1117;--card:#161b22;--text:#c9d1d9;--muted:#8b949e;
+      --accent:#2ea043;--line:#30363d;--chip:#1f6feb;--warn:#ffa657;
     }
     *{box-sizing:border-box}
-    body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-    header{padding:20px 16px;text-align:center;border-bottom:1px solid var(--grid)}
-    h1{margin:6px 0 4px;font-weight:800;letter-spacing:.3px}
-    .status{font-size:13px;color:var(--muted)}
-    .wrap{max-width:1100px;margin:18px auto;padding:0 14px;display:grid;gap:14px}
-    .row{display:grid;gap:14px}
-    .row.cols-2{grid-template-columns:1fr 1fr}
-    .card{background:var(--card);border:1px solid var(--grid);border-radius:14px;padding:14px}
-    .title{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-    .title h2{font-size:18px;margin:0;font-weight:800}
-    .pill{font-size:12px;color:#0b1220;background:var(--a);padding:4px 8px;border-radius:999px}
-    .kpi-grid{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:10px}
-    .kpi{background:#0f1722;border:1px solid var(--grid);border-radius:12px;padding:10px}
-    .kpi .label{font-size:12px;color:var(--muted)}
-    .kpi .val{font-size:20px;font-weight:800;margin-top:2px}
-    .cells{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
-    .cell{background:#0f1722;border:1px solid var(--grid);border-radius:10px;padding:8px;text-align:center}
-    .cell .idx{font-size:11px;color:var(--muted)}
-    .cell .v{font-size:16px;font-weight:700}
-    .ok{color:var(--b)} .warn{color:var(--warn)}
-    @media (max-width:900px){
-      .row.cols-2{grid-template-columns:1fr}
-      .kpi-grid{grid-template-columns:repeat(2,1fr)}
-      .cells{grid-template-columns:repeat(4,1fr)}
-    }
+    body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue","Noto Sans",sans-serif}
+    header{padding:18px 16px;border-bottom:1px solid var(--line);text-align:center}
+    h1{margin:0;font-size:24px}
+    .status{margin-top:6px;font-size:13px;color:var(--muted)}
+    .wrap{max-width:1200px;margin:20px auto;padding:0 12px}
+    .grid{display:grid;gap:12px}
+    .grid.cards{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+    .title{font-size:14px;color:#9cdcfe;margin:0 0 8px 0}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    .chip{background:#0b284f;border:1px solid #12467e;color:#cfe6ff;border-radius:10px;padding:6px 10px;min-width:110px;display:flex;justify-content:space-between}
+    .cellgrid{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
+    @media (max-width:900px){.cellgrid{grid-template-columns:repeat(4,1fr)}}
+    @media (max-width:520px){.cellgrid{grid-template-columns:repeat(2,1fr)}}
+    .cell{background:#12161d;border:1px solid var(--line);padding:8px;border-radius:10px;text-align:center}
+    .cell .n{font-size:12px;color:var(--muted)}
+    .cell .v{font-weight:700;margin-top:4px}
+    .section h2{margin:12px 0 8px 0;font-size:16px}
+    .badge{display:inline-block;background:#0b2e13;border:1px solid #205b2a;color:#9dffb0;padding:2px 8px;border-radius:999px;font-size:12px;vertical-align:middle;margin-left:6px}
+    /* Debug panel */
+    .debug{position:fixed;right:10px;bottom:10px;width:360px;max-height:45vh;overflow:auto;background:#0b0f14;border:1px solid var(--line);border-radius:10px}
+    .debug header{display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid var(--line)}
+    .debug header h3{margin:0;font-size:13px;color:#93c8ff}
+    .debug ol{margin:0;padding:8px 14px;list-style:decimal;color:#9da7b3;font-size:12px}
+    .debug li code{color:#bdd2ff}
+    .ok{color:#7ee787}
+    .err{color:#ffa657}
   </style>
 </head>
 <body>
   <header>
     <h1>BMS Radek Leszno</h1>
-    <div class="status">MQTT: <span id="mqttStatus">łączenie…</span></div>
+    <div id="mqttStatus" class="status">MQTT: łączenie…</div>
   </header>
 
-  <main class="wrap">
-    <!-- BMS 0 KPIs -->
-    <section class="card">
-      <div class="title"><h2>BMS 0 – Podsumowanie</h2><span class="pill">jk-bms-radek-leszno bms0</span></div>
-      <div class="kpi-grid" id="kpi0"></div>
+  <div class="wrap">
+    <!-- BMS 0 -->
+    <section class="section card">
+      <h2>BMS 0 – Podsumowanie <span class="badge">auto-map</span></h2>
+      <div class="grid cards">
+        <div class="card">
+          <p class="title">Total voltage</p>
+          <div class="chip"><span>V</span><strong id="b0_total">—</strong></div>
+        </div>
+        <div class="card">
+          <p class="title">Current</p>
+          <div class="chip"><span>A</span><strong id="b0_curr">—</strong></div>
+        </div>
+        <div class="card">
+          <p class="title">Power</p>
+          <div class="chip"><span>W</span><strong id="b0_pow">—</strong></div>
+        </div>
+        <div class="card">
+          <p class="title">Temp 1</p>
+          <div class="chip"><span>°C</span><strong id="b0_t1">—</strong></div>
+        </div>
+        <div class="card">
+          <p class="title">SOC</p>
+          <div class="chip"><span>%</span><strong id="b0_soc">—</strong></div>
+        </div>
+      </div>
     </section>
 
-    <!-- BMS 0 Cells -->
-    <section class="card">
-      <div class="title"><h2>BMS 0 – Napięcia celi</h2><span class="pill">16 celi</span></div>
-      <div class="cells" id="cells0"></div>
+    <section class="section card">
+      <h2>BMS 0 – Napięcia celi <span class="badge">16 cells</span></h2>
+      <div id="b0_cells" class="cellgrid">
+        <!-- 16 celi -->
+      </div>
     </section>
 
-    <!-- BMS 1 KPIs -->
-    <section class="card">
-      <div class="title"><h2>BMS 1 – Podsumowanie</h2><span class="pill">jk-bms-radek-leszno bms1</span></div>
-      <div class="kpi-grid" id="kpi1"></div>
+    <!-- BMS 1 -->
+    <section class="section card">
+      <h2>BMS 1 – Podsumowanie <span class="badge">auto-map</span></h2>
+      <div class="grid cards">
+        <div class="card">
+          <p class="title">Total voltage</p>
+          <div class="chip"><span>V</span><strong id="b1_total">—</strong></div>
+        </div>
+        <div class="card">
+          <p class="title">Current</p>
+          <div class="chip"><span>A</span><strong id="b1_curr">—</strong></div>
+        </div>
+        <div class="card">
+          <p class="title">Power</p>
+          <div class="chip"><span>W</span><strong id="b1_pow">—</strong></div>
+        </div>
+        <div class="card">
+          <p class="title">Temp 1</p>
+          <div class="chip"><span>°C</span><strong id="b1_t1">—</strong></div>
+        </div>
+        <div class="card">
+          <p class="title">SOC</p>
+          <div class="chip"><span>%</span><strong id="b1_soc">—</strong></div>
+        </div>
+      </div>
     </section>
 
-    <!-- BMS 1 Cells -->
-    <section class="card">
-      <div class="title"><h2>BMS 1 – Napięcia celi</h2><span class="pill">16 celi</span></div>
-      <div class="cells" id="cells1"></div>
+    <section class="section card">
+      <h2>BMS 1 – Napięcia celi <span class="badge">16 cells</span></h2>
+      <div id="b1_cells" class="cellgrid"></div>
     </section>
-  </main>
+  </div>
+
+  <!-- Debug live topics -->
+  <div class="debug" id="dbg">
+    <header>
+      <h3>Ostatnie wiadomości MQTT</h3>
+      <span id="dbgcount" class="status"></span>
+    </header>
+    <ol id="dbglist"></ol>
+  </div>
 
 <script>
-/* === KONFIGURACJA MQTT === */
-const MQTT_URL = "wss://broker.hivemq.com:8884/mqtt";
-const PREFIX   = "bms_radek_leszno";
-const clientId = "bmsweb_" + Math.random().toString(16).slice(2,10);
+/* ================== USTAWIENIA MQTT ================== */
+const MQTT_URL  = "wss://broker.hivemq.com:8884/mqtt";
+const PREFIX    = "bms_radek_leszno";     // taki sam jak w YAML
+const CLIENT_ID = "bms_web_" + Math.random().toString(16).slice(2,10);
 
-/* === POMOCNICZE === */
-const fmt = (n, d=1) => isFinite(n) ? (Math.round(n*10**d)/10**d).toFixed(d).replace(".", ",") : "—";
-const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"");
-const base0 = "jk-bms-radek-leszno bms0";
-const base1 = "jk-bms-radek-leszno bms1";
-
-/* Mapy KPI (co pokazujemy) */
-const KPI_DEF = {
-  bms0: [
-    { key: "total voltage",    label: "Total voltage",  unit:"V",  dec:1 },
-    { key: "current",          label: "Current",        unit:"A",  dec:1 },
-    { key: "power",            label: "Power",          unit:"W",  dec:0 },
-    { key: "temperature sensor 1", label: "Temp 1",     unit:"°C", dec:1 },
-    { key: "state of charge",  label: "SOC",            unit:"%",  dec:0 },
-  ],
-  bms1: [
-    { key: "total voltage",    label: "Total voltage",  unit:"V",  dec:1 },
-    { key: "current",          label: "Current",        unit:"A",  dec:1 },
-    { key: "power",            label: "Power",          unit:"W",  dec:0 },
-    { key: "temperature sensor 1", label: "Temp 1",     unit:"°C", dec:1 },
-    { key: "state of charge",  label: "SOC",            unit:"%",  dec:0 },
-  ]
-};
-/* Klucze celi */
-const CELLS0 = Array.from({length:16},(_,i)=> `cell voltage ${i+1}`);
-const CELLS1 = Array.from({length:16},(_,i)=> `cell voltage ${i+1}`);
-
-/* Budujemy pełne tematy MQTT */
-function topicSensor(base, key){ return `${PREFIX}/sensor/${slug(base+" "+key)}/state`; }
-const TOPICS = [];
-KPI_DEF.bms0.forEach(d => TOPICS.push(topicSensor(base0,d.key)));
-KPI_DEF.bms1.forEach(d => TOPICS.push(topicSensor(base1,d.key)));
-CELLS0.forEach(k => TOPICS.push(topicSensor(base0,k)));
-CELLS1.forEach(k => TOPICS.push(topicSensor(base1,k)));
-
-/* Stan wartości */
-const state = {};
-TOPICS.forEach(t => state[t] = null);
-
-/* Renderery */
-const kpi0 = document.getElementById("kpi0");
-const kpi1 = document.getElementById("kpi1");
-const cells0 = document.getElementById("cells0");
-const cells1 = document.getElementById("cells1");
-
-function renderKPIs(){
-  function section(el, defs, base){
-    el.innerHTML = "";
-    defs.forEach(d=>{
-      const t = topicSensor(base, d.key);
-      const num = Number(String(state[t]).replace(",","."));      
-      const div = document.createElement("div");
-      div.className="kpi";
-      div.innerHTML = `<div class="label">${d.label}</div><div class="val">${fmt(num,d.dec)} <span style="font-size:12px;color:var(--muted)">${d.unit}</span></div>`;
-      el.appendChild(div);
-    });
+/* ================== UI – komórki ================== */
+function buildCells(containerId, prefix){
+  const el = document.getElementById(containerId);
+  el.innerHTML = "";
+  for(let i=1;i<=16;i++){
+    const c = document.createElement("div");
+    c.className = "cell";
+    c.innerHTML = `<div class="n">#${i}</div><div class="v" id="${prefix}${i}">—</div>`;
+    el.appendChild(c);
   }
-  section(kpi0, KPI_DEF.bms0, base0);
-  section(kpi1, KPI_DEF.bms1, base1);
 }
+buildCells("b0_cells","b0_c");
+buildCells("b1_cells","b1_c");
 
-function renderCells(){
-  function section(el, cells, base){
-    el.innerHTML = "";
-    cells.forEach((k,idx)=>{
-      const t = topicSensor(base, k);
-      const v = Number(String(state[t]).replace(",","."));      
-      const div = document.createElement("div");
-      div.className = "cell";
-      const cls = (isFinite(v) && v>0 && (v<3.1 || v>3.6)) ? "warn" : "ok";
-      div.innerHTML = `<div class="idx">#${idx+1}</div><div class="v ${cls}">${fmt(v,3)} V</div>`;
-      el.appendChild(div);
-    });
-  }
-  section(cells0, CELLS0, base0);
-  section(cells1, CELLS1, base1);
-}
-
-/* === MQTT === */
+/* ================== MQTT połączenie ================== */
 const statusEl = document.getElementById("mqttStatus");
-const client = mqtt.connect(MQTT_URL, {clientId, clean:true, reconnectPeriod:3000});
+const dbgList  = document.getElementById("dbglist");
+const dbgCount = document.getElementById("dbgcount");
+let dbgBuf = [];
 
-client.on("connect", ()=>{
-  statusEl.textContent = "połączono";
-  client.subscribe(TOPICS);
+const client = mqtt.connect(MQTT_URL, {
+  clientId: CLIENT_ID, clean: true, reconnectPeriod: 3000
 });
 
-client.on("reconnect", ()=> statusEl.textContent="ponawiam…");
-client.on("close", ()=> statusEl.textContent="rozłączono");
-client.on("error", ()=> statusEl.textContent="błąd połączenia");
-
-client.on("message", (topic, payload)=>{
-  state[topic] = payload.toString();
-  renderKPIs();
-  renderCells();
+client.on("connect", () => {
+  statusEl.innerHTML = `MQTT: <span class="ok">połączono</span>`;
+  client.subscribe(`${PREFIX}/#`);
 });
 
-/* start */
-renderKPIs();
-renderCells();
+client.on("reconnect", ()=> statusEl.textContent = "MQTT: ponawianie…");
+client.on("close", ()=> statusEl.innerHTML = `MQTT: <span class="err">rozłączono</span>`);
+client.on("error", (e)=> statusEl.innerHTML = `MQTT: <span class="err">błąd</span>`);
+
+/* ============== Bufor debug – pokaż ostatnie 20 ============== */
+function pushDebug(topic, payload){
+  dbgBuf.unshift({t:topic, p:payload, ts: Date.now()});
+  if(dbgBuf.length>20) dbgBuf.pop();
+  dbgList.innerHTML = dbgBuf.map(item =>
+    `<li><code>${item.t}</code> → <strong>${item.p}</strong></li>`
+  ).join("");
+  dbgCount.textContent = `${dbgBuf.length} / 20`;
+}
+
+/* ================== Mapa do UI ================== */
+function setText(id, val){
+  const el = document.getElementById(id);
+  if(el){ el.textContent = val; }
+}
+
+client.on("message", (topic, payload) => {
+  const msg = payload.toString();
+  pushDebug(topic, msg);
+
+  // Interesują nas tylko /state
+  if(!topic.endsWith("/state")) return;
+
+  const t = topic.toLowerCase();
+
+  // BMS0 / BMS1 wykrywanie po fragmencie
+  const is0 = t.includes("_bms0_");
+  const is1 = t.includes("_bms1_");
+
+  // Total voltage
+  if(t.includes("total_voltage")){
+    if(is0) setText("b0_total", msg);
+    if(is1) setText("b1_total", msg);
+    return;
+  }
+
+  // Current
+  if(t.includes("/current/") || t.includes("_current_")){
+    if(is0) setText("b0_curr", msg);
+    if(is1) setText("b1_curr", msg);
+    return;
+  }
+
+  // Power
+  if(t.includes("/power/") || t.includes("_power_")){
+    if(is0) setText("b0_pow", msg);
+    if(is1) setText("b1_pow", msg);
+    return;
+  }
+
+  // Temperature sensor 1
+  if(t.includes("temperature_sensor_1")){
+    if(is0) setText("b0_t1", msg);
+    if(is1) setText("b1_t1", msg);
+    return;
+  }
+
+  // State of charge
+  if(t.includes("state_of_charge")){
+    if(is0) setText("b0_soc", msg);
+    if(is1) setText("b1_soc", msg);
+    return;
+  }
+
+  // Cell voltages 1..16
+  // szukamy "cell_voltage_X"
+  const m = t.match(/cell_voltage_(\d+)/);
+  if(m){
+    const n = parseInt(m[1],10);
+    if(n>=1 && n<=16){
+      const id = (is0 ? "b0_c" : is1 ? "b1_c" : null);
+      if(id) setText(id + n, msg);
+    }
+  }
+});
 </script>
 </body>
 </html>
