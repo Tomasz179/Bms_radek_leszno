@@ -20,16 +20,15 @@
     .grid.cards{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
     .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
     .title{font-size:14px;color:#9cdcfe;margin:0 0 8px 0}
-    .row{display:flex;gap:10px;flex-wrap:wrap}
     .chip{background:#0b284f;border:1px solid #12467e;color:#cfe6ff;border-radius:10px;padding:6px 10px;min-width:110px;display:flex;justify-content:space-between}
+    .section h2{margin:12px 0 8px 0;font-size:16px}
+    .badge{display:inline-block;background:#0b2e13;border:1px solid #205b2a;color:#9dffb0;padding:2px 8px;border-radius:999px;font-size:12px;vertical-align:middle;margin-left:6px}
     .cellgrid{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
     @media (max-width:900px){.cellgrid{grid-template-columns:repeat(4,1fr)}}
     @media (max-width:520px){.cellgrid{grid-template-columns:repeat(2,1fr)}}
     .cell{background:#12161d;border:1px solid var(--line);padding:8px;border-radius:10px;text-align:center}
     .cell .n{font-size:12px;color:var(--muted)}
     .cell .v{font-weight:700;margin-top:4px}
-    .section h2{margin:12px 0 8px 0;font-size:16px}
-    .badge{display:inline-block;background:#0b2e13;border:1px solid #205b2a;color:#9dffb0;padding:2px 8px;border-radius:999px;font-size:12px;vertical-align:middle;margin-left:6px}
     /* Debug panel */
     .debug{position:fixed;right:10px;bottom:10px;width:360px;max-height:45vh;overflow:auto;background:#0b0f14;border:1px solid var(--line);border-radius:10px}
     .debug header{display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid var(--line)}
@@ -51,60 +50,28 @@
     <section class="section card">
       <h2>BMS 0 – Podsumowanie <span class="badge">auto-map</span></h2>
       <div class="grid cards">
-        <div class="card">
-          <p class="title">Total voltage</p>
-          <div class="chip"><span>V</span><strong id="b0_total">—</strong></div>
-        </div>
-        <div class="card">
-          <p class="title">Current</p>
-          <div class="chip"><span>A</span><strong id="b0_curr">—</strong></div>
-        </div>
-        <div class="card">
-          <p class="title">Power</p>
-          <div class="chip"><span>W</span><strong id="b0_pow">—</strong></div>
-        </div>
-        <div class="card">
-          <p class="title">Temp 1</p>
-          <div class="chip"><span>°C</span><strong id="b0_t1">—</strong></div>
-        </div>
-        <div class="card">
-          <p class="title">SOC</p>
-          <div class="chip"><span>%</span><strong id="b0_soc">—</strong></div>
-        </div>
+        <div class="card"><p class="title">Total voltage</p><div class="chip"><span>V</span><strong id="b0_total">—</strong></div></div>
+        <div class="card"><p class="title">Current</p><div class="chip"><span>A</span><strong id="b0_curr">—</strong></div></div>
+        <div class="card"><p class="title">Power</p><div class="chip"><span>W</span><strong id="b0_pow">—</strong></div></div>
+        <div class="card"><p class="title">Temp 1</p><div class="chip"><span>°C</span><strong id="b0_t1">—</strong></div></div>
+        <div class="card"><p class="title">SOC</p><div class="chip"><span>%</span><strong id="b0_soc">—</strong></div></div>
       </div>
     </section>
 
     <section class="section card">
       <h2>BMS 0 – Napięcia celi <span class="badge">16 cells</span></h2>
-      <div id="b0_cells" class="cellgrid">
-        <!-- 16 celi -->
-      </div>
+      <div id="b0_cells" class="cellgrid"></div>
     </section>
 
     <!-- BMS 1 -->
     <section class="section card">
       <h2>BMS 1 – Podsumowanie <span class="badge">auto-map</span></h2>
       <div class="grid cards">
-        <div class="card">
-          <p class="title">Total voltage</p>
-          <div class="chip"><span>V</span><strong id="b1_total">—</strong></div>
-        </div>
-        <div class="card">
-          <p class="title">Current</p>
-          <div class="chip"><span>A</span><strong id="b1_curr">—</strong></div>
-        </div>
-        <div class="card">
-          <p class="title">Power</p>
-          <div class="chip"><span>W</span><strong id="b1_pow">—</strong></div>
-        </div>
-        <div class="card">
-          <p class="title">Temp 1</p>
-          <div class="chip"><span>°C</span><strong id="b1_t1">—</strong></div>
-        </div>
-        <div class="card">
-          <p class="title">SOC</p>
-          <div class="chip"><span>%</span><strong id="b1_soc">—</strong></div>
-        </div>
+        <div class="card"><p class="title">Total voltage</p><div class="chip"><span>V</span><strong id="b1_total">—</strong></div></div>
+        <div class="card"><p class="title">Current</p><div class="chip"><span>A</span><strong id="b1_curr">—</strong></div></div>
+        <div class="card"><p class="title">Power</p><div class="chip"><span>W</span><strong id="b1_pow">—</strong></div></div>
+        <div class="card"><p class="title">Temp 1</p><div class="chip"><span>°C</span><strong id="b1_t1">—</strong></div></div>
+        <div class="card"><p class="title">SOC</p><div class="chip"><span>%</span><strong id="b1_soc">—</strong></div></div>
       </div>
     </section>
 
@@ -114,7 +81,7 @@
     </section>
   </div>
 
-  <!-- Debug live topics -->
+  <!-- Debug -->
   <div class="debug" id="dbg">
     <header>
       <h3>Ostatnie wiadomości MQTT</h3>
@@ -124,116 +91,114 @@
   </div>
 
 <script>
-/* ================== USTAWIENIA MQTT ================== */
+/* ========== MQTT ========== */
 const MQTT_URL  = "wss://broker.hivemq.com:8884/mqtt";
-const PREFIX    = "bms_radek_leszno";     // taki sam jak w YAML
+const PREFIX    = "bms_radek_leszno";
 const CLIENT_ID = "bms_web_" + Math.random().toString(16).slice(2,10);
 
-/* ================== UI – komórki ================== */
+/* ========== UI helpers ========== */
 function buildCells(containerId, prefix){
-  const el = document.getElementById(containerId);
-  el.innerHTML = "";
+  const container = document.getElementById(containerId);
+  container.innerHTML = "";
   for(let i=1;i<=16;i++){
-    const c = document.createElement("div");
-    c.className = "cell";
-    c.innerHTML = `<div class="n">#${i}</div><div class="v" id="${prefix}${i}">—</div>`;
-    el.appendChild(c);
+    const d=document.createElement("div");
+    d.className="cell";
+    d.innerHTML = `<div class="n">#${i}</div><div class="v" id="${prefix}${i}">—</div>`;
+    container.appendChild(d);
   }
 }
 buildCells("b0_cells","b0_c");
 buildCells("b1_cells","b1_c");
 
-/* ================== MQTT połączenie ================== */
-const statusEl = document.getElementById("mqttStatus");
+function setIfNumber(elId, val, digits){
+  const el = document.getElementById(elId);
+  if(!el) return;
+  const n = parseFloat(String(val).replace(',','.'));
+  if(Number.isFinite(n)){
+    el.textContent = n.toFixed(digits);
+  }
+  // jeśli nie liczba – zostaw poprzednią wartość (nie wpisuj "nan")
+}
+
+/* ========== Debug buffer ========== */
 const dbgList  = document.getElementById("dbglist");
 const dbgCount = document.getElementById("dbgcount");
 let dbgBuf = [];
+function pushDebug(topic, payload){
+  dbgBuf.unshift({t:topic, p:payload});
+  if(dbgBuf.length>25) dbgBuf.pop();
+  dbgList.innerHTML = dbgBuf.map(x=>`<li><code>${x.t}</code> → <strong>${x.p}</strong></li>`).join("");
+  dbgCount.textContent = `${dbgBuf.length} / 25`;
+}
 
-const client = mqtt.connect(MQTT_URL, {
-  clientId: CLIENT_ID, clean: true, reconnectPeriod: 3000
-});
+/* ========== BMS detector (robust) ========== */
+/* Normalizujemy temat: wszystko poza a-z0-9 -> "_" */
+function normTopic(t){
+  return t.toLowerCase().replace(/[^a-z0-9]+/g,"_");
+}
+function whichBms(t){
+  const nt = normTopic(t);
+  if(nt.includes("_bms0_")) return 0;
+  if(nt.includes("_bms1_")) return 1;
+  return -1;
+}
 
-client.on("connect", () => {
+/* ========== MQTT connect ========== */
+const statusEl = document.getElementById("mqttStatus");
+const client = mqtt.connect(MQTT_URL, {clientId: CLIENT_ID, clean:true, reconnectPeriod:3000});
+
+client.on("connect", ()=>{
   statusEl.innerHTML = `MQTT: <span class="ok">połączono</span>`;
   client.subscribe(`${PREFIX}/#`);
 });
-
 client.on("reconnect", ()=> statusEl.textContent = "MQTT: ponawianie…");
 client.on("close", ()=> statusEl.innerHTML = `MQTT: <span class="err">rozłączono</span>`);
-client.on("error", (e)=> statusEl.innerHTML = `MQTT: <span class="err">błąd</span>`);
+client.on("error", ()=> statusEl.innerHTML = `MQTT: <span class="err">błąd</span>`);
 
-/* ============== Bufor debug – pokaż ostatnie 20 ============== */
-function pushDebug(topic, payload){
-  dbgBuf.unshift({t:topic, p:payload, ts: Date.now()});
-  if(dbgBuf.length>20) dbgBuf.pop();
-  dbgList.innerHTML = dbgBuf.map(item =>
-    `<li><code>${item.t}</code> → <strong>${item.p}</strong></li>`
-  ).join("");
-  dbgCount.textContent = `${dbgBuf.length} / 20`;
-}
+/* ========== Mapping wiadomości ========== */
+client.on("message",(topic,payload)=>{
+  const val = payload.toString();
+  pushDebug(topic,val);
 
-/* ================== Mapa do UI ================== */
-function setText(id, val){
-  const el = document.getElementById(id);
-  if(el){ el.textContent = val; }
-}
-
-client.on("message", (topic, payload) => {
-  const msg = payload.toString();
-  pushDebug(topic, msg);
-
-  // Interesują nas tylko /state
   if(!topic.endsWith("/state")) return;
 
-  const t = topic.toLowerCase();
+  const b = whichBms(topic); // 0 / 1 / -1
+  if(b === -1) return;
 
-  // BMS0 / BMS1 wykrywanie po fragmencie
-  const is0 = t.includes("_bms0_");
-  const is1 = t.includes("_bms1_");
+  const nt = normTopic(topic);
 
-  // Total voltage
-  if(t.includes("total_voltage")){
-    if(is0) setText("b0_total", msg);
-    if(is1) setText("b1_total", msg);
+  // total voltage
+  if(nt.includes("_total_voltage_")){
+    setIfNumber(b===0? "b0_total":"b1_total", val, 3);
     return;
   }
-
-  // Current
-  if(t.includes("/current/") || t.includes("_current_")){
-    if(is0) setText("b0_curr", msg);
-    if(is1) setText("b1_curr", msg);
+  // current
+  if(nt.includes("_current_")){
+    setIfNumber(b===0? "b0_curr":"b1_curr", val, 1);
     return;
   }
-
-  // Power
-  if(t.includes("/power/") || t.includes("_power_")){
-    if(is0) setText("b0_pow", msg);
-    if(is1) setText("b1_pow", msg);
+  // power
+  if(nt.includes("_power_") && !nt.includes("_charging_power_") && !nt.includes("_discharging_power_")){
+    setIfNumber(b===0? "b0_pow":"b1_pow", val, 1);
     return;
   }
-
-  // Temperature sensor 1
-  if(t.includes("temperature_sensor_1")){
-    if(is0) setText("b0_t1", msg);
-    if(is1) setText("b1_t1", msg);
+  // temp sensor 1
+  if(nt.includes("_temperature_sensor_1_")){
+    setIfNumber(b===0? "b0_t1":"b1_t1", val, 1);
     return;
   }
-
-  // State of charge
-  if(t.includes("state_of_charge")){
-    if(is0) setText("b0_soc", msg);
-    if(is1) setText("b1_soc", msg);
+  // state of charge
+  if(nt.includes("_state_of_charge_")){
+    setIfNumber(b===0? "b0_soc":"b1_soc", val, 1);
     return;
   }
-
-  // Cell voltages 1..16
-  // szukamy "cell_voltage_X"
-  const m = t.match(/cell_voltage_(\d+)/);
+  // cell voltages
+  const m = nt.match(/_cell_voltage_(\d+)_/);
   if(m){
-    const n = parseInt(m[1],10);
-    if(n>=1 && n<=16){
-      const id = (is0 ? "b0_c" : is1 ? "b1_c" : null);
-      if(id) setText(id + n, msg);
+    const idx = parseInt(m[1],10);
+    if(idx>=1 && idx<=16){
+      const id = (b===0 ? "b0_c":"b1_c") + idx;
+      setIfNumber(id, val, 3);
     }
   }
 });
