@@ -1,134 +1,132 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>BMS Radek Leszno</title>
-  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-  <style>
-    :root{
-      --bg:#0d1117;--card:#161b22;--text:#c9d1d9;--muted:#8b949e;
-      --accent:#2ea043;--line:#30363d;--chip:#1f6feb;
-    }
-    *{box-sizing:border-box}
-    body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue","Noto Sans",sans-serif}
-    header{padding:18px 16px;border-bottom:1px solid var(--line);text-align:center}
-    h1{margin:0;font-size:24px}
-    .status{margin-top:6px;font-size:13px;color:var(--muted)}
-    .wrap{max-width:1200px;margin:20px auto;padding:0 12px}
-    .grid{display:grid;gap:12px}
-    .grid.cards{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
-    .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
-    .title{font-size:14px;color:#9cdcfe;margin:0 0 8px 0}
-    .chip{background:#0b284f;border:1px solid #12467e;color:#cfe6ff;border-radius:10px;padding:6px 10px;min-width:110px;display:flex;justify-content:space-between}
-    .section h2{margin:12px 0 8px 0;font-size:16px}
-    .badge{display:inline-block;background:#0b2e13;border:1px solid #205b2a;color:#9dffb0;padding:2px 8px;border-radius:999px;font-size:12px;vertical-align:middle;margin-left:6px}
-    .cellgrid{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
-    @media (max-width:900px){.cellgrid{grid-template-columns:repeat(4,1fr)}}
-    @media (max-width:520px){.cellgrid{grid-template-columns:repeat(2,1fr)}}
-    .cell{background:#12161d;border:1px solid var(--line);padding:8px;border-radius:10px;text-align:center}
-    .cell .n{font-size:12px;color:var(--muted)}
-    .cell .v{font-weight:700;margin-top:4px}
-    .ok{color:#7ee787}
-    .err{color:#ffa657}
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BMS – 3x Magazyn</title>
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+<style>
+:root{
+--bg:#0d1117;--card:#161b22;--text:#c9d1d9;--muted:#8b949e;
+--line:#30363d;--green:#2ea043;--red:#da3633;
+}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui}
+header{text-align:center;padding:18px;border-bottom:1px solid var(--line)}
+h1{margin:0}
+.status{font-size:13px;color:var(--muted);margin-top:6px}
+.wrap{max-width:1200px;margin:20px auto;padding:0 12px}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.title{font-size:13px;color:#9cdcfe;margin-bottom:6px}
+.value{font-size:20px;font-weight:700}
+.green{color:var(--green)}
+.red{color:var(--red)}
+.section{margin-bottom:25px}
+h2{margin:0 0 12px 0;font-size:18px}
+.ok{color:#7ee787}
+.err{color:#ffa657}
+</style>
 </head>
+
 <body>
-  <header>
-    <h1>BMS Radek Leszno</h1>
-    <div id="mqttStatus" class="status">MQTT: łączenie…</div>
-  </header>
 
-  <div class="wrap">
-    <!-- BMS 0 -->
-    <section class="section card">
-      <h2>BMS 0 – Podsumowanie</h2>
-      <div class="grid cards">
-        <div class="card"><p class="title">Total voltage</p><div class="chip"><span>V</span><strong id="b0_total">—</strong></div></div>
-        <div class="card"><p class="title">Current</p><div class="chip"><span>A</span><strong id="b0_curr">—</strong></div></div>
-        <div class="card"><p class="title">Power</p><div class="chip"><span>W</span><strong id="b0_pow">—</strong></div></div>
-        <div class="card"><p class="title">Temp 1</p><div class="chip"><span>°C</span><strong id="b0_t1">—</strong></div></div>
-        <div class="card"><p class="title">SOC</p><div class="chip"><span>%</span><strong id="b0_soc">—</strong></div></div>
-      </div>
-    </section>
+<header>
+<h1>Magazyn Energii – 3x JK BMS</h1>
+<div id="mqttStatus" class="status">MQTT: łączenie…</div>
+</header>
 
-    <section class="section card">
-      <h2>BMS 0 – Napięcia celi</h2>
-      <div id="b0_cells" class="cellgrid"></div>
-    </section>
-
-    <!-- BMS 1 -->
-    <section class="section card">
-      <h2>BMS 1 – Podsumowanie</h2>
-      <div class="grid cards">
-        <div class="card"><p class="title">Total voltage</p><div class="chip"><span>V</span><strong id="b1_total">—</strong></div></div>
-        <div class="card"><p class="title">Current</p><div class="chip"><span>A</span><strong id="b1_curr">—</strong></div></div>
-        <div class="card"><p class="title">Power</p><div class="chip"><span>W</span><strong id="b1_pow">—</strong></div></div>
-        <div class="card"><p class="title">Temp 1</p><div class="chip"><span>°C</span><strong id="b1_t1">—</strong></div></div>
-        <div class="card"><p class="title">SOC</p><div class="chip"><span>%</span><strong id="b1_soc">—</strong></div></div>
-      </div>
-    </section>
-
-    <section class="section card">
-      <h2>BMS 1 – Napięcia celi</h2>
-      <div id="b1_cells" class="cellgrid"></div>
-    </section>
-  </div>
+<div class="wrap" id="content"></div>
 
 <script>
 const MQTT_URL  = "wss://broker.hivemq.com:8884/mqtt";
 const PREFIX    = "bms_radek_leszno";
+const DEVICE    = "jk-bms-minimal";
 const CLIENT_ID = "bms_web_" + Math.random().toString(16).slice(2,10);
 
-function buildCells(containerId, prefix){
-  const container = document.getElementById(containerId);
-  for(let i=1;i<=16;i++){
-    const d=document.createElement("div");
-    d.className="cell";
-    d.innerHTML = `<div class="n">#${i}</div><div class="v" id="${prefix}${i}">—</div>`;
-    container.appendChild(d);
+const statusEl = document.getElementById("mqttStatus");
+const container = document.getElementById("content");
+
+function createSection(index){
+  const html = `
+  <div class="section card">
+    <h2>Magazyn ${index}</h2>
+    <div class="grid">
+      ${card(`b${index}_voltage`,"Voltage","V")}
+      ${card(`b${index}_current`,"Current","A")}
+      ${card(`b${index}_power`,"Power","W")}
+      ${card(`b${index}_soc`,"SOC","%")}
+      ${card(`b${index}_capacity`,"Capacity","Ah")}
+      ${card(`b${index}_maxcell`,"Max Cell","V")}
+      ${card(`b${index}_mincell`,"Min Cell","V")}
+      ${card(`b${index}_balancer`,"Balancer","A")}
+    </div>
+  </div>`;
+  container.innerHTML += html;
+}
+
+function card(id,title,unit){
+  return `<div class="card">
+            <div class="title">${title}</div>
+            <div class="value" id="${id}">— ${unit}</div>
+          </div>`;
+}
+
+createSection(1);
+createSection(2);
+createSection(3);
+
+function norm(t){return t.toLowerCase().replace(/[^a-z0-9]+/g,"_");}
+
+function setVal(id,val,digits,colorize=false){
+  const el=document.getElementById(id);
+  const n=parseFloat(String(val).replace(',','.'));
+  if(!Number.isFinite(n)) return;
+  el.textContent=n.toFixed(digits)+" "+el.textContent.split(" ")[1];
+  if(colorize){
+    el.classList.remove("green","red");
+    if(n>0) el.classList.add("green");
+    if(n<0) el.classList.add("red");
   }
 }
-buildCells("b0_cells","b0_c");
-buildCells("b1_cells","b1_c");
 
-function setIfNumber(elId, val, digits){
-  const el = document.getElementById(elId);
-  const n = parseFloat(String(val).replace(',','.'));
-  if(Number.isFinite(n)) el.textContent = n.toFixed(digits);
-}
+const client = mqtt.connect(MQTT_URL,{
+  clientId:CLIENT_ID,
+  clean:true,
+  reconnectPeriod:3000
+});
 
-function normTopic(t){return t.toLowerCase().replace(/[^a-z0-9]+/g,"_");}
-function whichBms(t){
-  const nt = normTopic(t);
-  if(nt.includes("_bms0_")) return 0;
-  if(nt.includes("_bms1_")) return 1;
-  return -1;
-}
+client.on("connect",()=>{
+  statusEl.innerHTML='MQTT: <span class="ok">połączono</span>';
+  client.subscribe(`${PREFIX}/${DEVICE}/#`);
+});
 
-const statusEl = document.getElementById("mqttStatus");
-const client = mqtt.connect(MQTT_URL, {clientId: CLIENT_ID, clean:true, reconnectPeriod:3000});
-
-client.on("connect", ()=>{statusEl.innerHTML=`MQTT: <span class="ok">połączono</span>`;client.subscribe(`${PREFIX}/#`);});
-client.on("reconnect", ()=>statusEl.textContent="MQTT: ponawianie…");
-client.on("close", ()=>statusEl.innerHTML=`MQTT: <span class="err">rozłączono</span>`);
-client.on("error", ()=>statusEl.innerHTML=`MQTT: <span class="err">błąd</span>`);
+client.on("reconnect",()=>statusEl.textContent="MQTT: ponawianie…");
+client.on("close",()=>statusEl.innerHTML='MQTT: <span class="err">rozłączono</span>');
+client.on("error",()=>statusEl.innerHTML='MQTT: <span class="err">błąd</span>');
 
 client.on("message",(topic,payload)=>{
-  const val = payload.toString();
   if(!topic.endsWith("/state")) return;
-  const b = whichBms(topic); if(b===-1) return;
-  const nt = normTopic(topic);
-  if(nt.includes("_total_voltage_")) setIfNumber(b===0?"b0_total":"b1_total",val,3);
-  else if(nt.includes("_current_")) setIfNumber(b===0?"b0_curr":"b1_curr",val,1);
-  else if(nt.includes("_power_")&&!nt.includes("_charging_power_")&&!nt.includes("_discharging_power_")) setIfNumber(b===0?"b0_pow":"b1_pow",val,1);
-  else if(nt.includes("_temperature_sensor_1_")) setIfNumber(b===0?"b0_t1":"b1_t1",val,1);
-  else if(nt.includes("_state_of_charge_")) setIfNumber(b===0?"b0_soc":"b1_soc",val,1);
-  else{
-    const m=nt.match(/_cell_voltage_(\d+)_/);
-    if(m){const idx=parseInt(m[1],10);if(idx>=1&&idx<=16)setIfNumber((b===0?"b0_c":"b1_c")+idx,val,3);}
-  }
+
+  const nt = norm(topic);
+  const val = payload.toString();
+
+  let bank=-1;
+  if(nt.includes("jk_bms_1")) bank=1;
+  if(nt.includes("jk_bms_2")) bank=2;
+  if(nt.includes("jk_bms_3")) bank=3;
+  if(bank===-1) return;
+
+  if(nt.includes("total_voltage")) setVal(`b${bank}_voltage`,val,2);
+  else if(nt.includes("current")) setVal(`b${bank}_current`,val,1,true);
+  else if(nt.includes("power")) setVal(`b${bank}_power`,val,0,true);
+  else if(nt.includes("soc")) setVal(`b${bank}_soc`,val,1);
+  else if(nt.includes("battery_capacity")) setVal(`b${bank}_capacity`,val,1);
+  else if(nt.includes("max_cell")) setVal(`b${bank}_maxcell`,val,3);
+  else if(nt.includes("min_cell")) setVal(`b${bank}_mincell`,val,3);
+  else if(nt.includes("balancer_current")) setVal(`b${bank}_balancer`,val,2);
 });
 </script>
+
 </body>
 </html>
