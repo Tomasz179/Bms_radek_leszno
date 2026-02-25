@@ -2,129 +2,171 @@
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>BMS – 3x Magazyn</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Magazyn Energii – 3x JK BMS</title>
+
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
 <style>
-:root{
---bg:#0d1117;--card:#161b22;--text:#c9d1d9;--muted:#8b949e;
---line:#30363d;--green:#2ea043;--red:#da3633;
+body{
+    font-family: Arial, sans-serif;
+    background:#0d1117;
+    color:#e6edf3;
+    margin:0;
+    padding:20px;
 }
-body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui}
-header{text-align:center;padding:18px;border-bottom:1px solid var(--line)}
-h1{margin:0}
-.status{font-size:13px;color:var(--muted);margin-top:6px}
-.wrap{max-width:1200px;margin:20px auto;padding:0 12px}
-.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
-.title{font-size:13px;color:#9cdcfe;margin-bottom:6px}
-.value{font-size:20px;font-weight:700}
-.green{color:var(--green)}
-.red{color:var(--red)}
-.section{margin-bottom:25px}
-h2{margin:0 0 12px 0;font-size:18px}
-.ok{color:#7ee787}
-.err{color:#ffa657}
+h1{
+    text-align:center;
+}
+.status{
+    text-align:center;
+    margin-bottom:20px;
+    font-weight:bold;
+}
+.section{
+    border:1px solid #30363d;
+    border-radius:12px;
+    padding:20px;
+    margin-bottom:25px;
+}
+.grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px,1fr));
+    gap:15px;
+}
+.card{
+    border:1px solid #30363d;
+    border-radius:10px;
+    padding:15px;
+    background:#161b22;
+}
+.label{
+    font-size:14px;
+    color:#8b949e;
+}
+.value{
+    font-size:22px;
+    margin-top:5px;
+}
+.charge{ color:#2ecc71; }
+.discharge{ color:#e74c3c; }
+.total{
+    font-size:28px;
+    text-align:center;
+    margin:15px 0 30px 0;
+}
 </style>
 </head>
-
 <body>
 
-<header>
 <h1>Magazyn Energii – 3x JK BMS</h1>
-<div id="mqttStatus" class="status">MQTT: łączenie…</div>
-</header>
+<div class="status" id="mqttStatus">MQTT: łączenie...</div>
+<div class="total">Suma mocy: <span id="totalPower">0</span> W</div>
 
-<div class="wrap" id="content"></div>
+<div id="banks"></div>
 
 <script>
-const MQTT_URL  = "wss://broker.hivemq.com:8884/mqtt";
-const PREFIX    = "bms_radek_leszno";
-const DEVICE    = "jk-bms-minimal";
-const CLIENT_ID = "bms_web_" + Math.random().toString(16).slice(2,10);
+const BROKER = "ws://broker.hivemq.com:8000/mqtt";
+const PREFIX = "bms_radek_leszno";
 
-const statusEl = document.getElementById("mqttStatus");
-const container = document.getElementById("content");
+const banks = {
+    1:{}, 2:{}, 3:{}
+};
 
-function createSection(index){
-  const html = `
-  <div class="section card">
-    <h2>Magazyn ${index}</h2>
-    <div class="grid">
-      ${card(`b${index}_voltage`,"Voltage","V")}
-      ${card(`b${index}_current`,"Current","A")}
-      ${card(`b${index}_power`,"Power","W")}
-      ${card(`b${index}_soc`,"SOC","%")}
-      ${card(`b${index}_capacity`,"Capacity","Ah")}
-      ${card(`b${index}_maxcell`,"Max Cell","V")}
-      ${card(`b${index}_mincell`,"Min Cell","V")}
-      ${card(`b${index}_balancer`,"Balancer","A")}
-    </div>
-  </div>`;
-  container.innerHTML += html;
+const container = document.getElementById("banks");
+
+function createBankUI(n){
+    const section = document.createElement("div");
+    section.className="section";
+    section.innerHTML=`
+        <h2>Magazyn ${n}</h2>
+        <div class="grid">
+            ${card("Voltage","voltage","V")}
+            ${card("Current","current","A")}
+            ${card("Power","power","W")}
+            ${card("SOC","soc","%")}
+            ${card("Capacity","battery_capacity","Ah")}
+            ${card("Max Cell","max_cell","V")}
+            ${card("Min Cell","min_cell","V")}
+            ${card("Balancer","balancer_current","A")}
+        </div>
+    `;
+    container.appendChild(section);
 }
 
-function card(id,title,unit){
-  return `<div class="card">
-            <div class="title">${title}</div>
-            <div class="value" id="${id}">— ${unit}</div>
-          </div>`;
+function card(label,id,unit){
+    return `
+    <div class="card">
+        <div class="label">${label}</div>
+        <div class="value" id="b${id}">${unit==="%"?"-- %":"-- "+unit}</div>
+    </div>`;
 }
 
-createSection(1);
-createSection(2);
-createSection(3);
+[1,2,3].forEach(createBankUI);
 
-function norm(t){return t.toLowerCase().replace(/[^a-z0-9]+/g,"_");}
+function updateUI(bank,key,value){
+    const el = document.getElementById(`b${bank}_${key}`);
+    if(!el) return;
 
-function setVal(id,val,digits,colorize=false){
-  const el=document.getElementById(id);
-  const n=parseFloat(String(val).replace(',','.'));
-  if(!Number.isFinite(n)) return;
-  el.textContent=n.toFixed(digits)+" "+el.textContent.split(" ")[1];
-  if(colorize){
-    el.classList.remove("green","red");
-    if(n>0) el.classList.add("green");
-    if(n<0) el.classList.add("red");
-  }
+    el.textContent = value;
+
+    if(key==="power"){
+        el.classList.remove("charge","discharge");
+        if(parseFloat(value)>0) el.classList.add("charge");
+        if(parseFloat(value)<0) el.classList.add("discharge");
+    }
 }
 
-const client = mqtt.connect(MQTT_URL,{
-  clientId:CLIENT_ID,
-  clean:true,
-  reconnectPeriod:3000
-});
+function updateTotal(){
+    let sum=0;
+    Object.values(banks).forEach(b=>{
+        if(b.power) sum+=parseFloat(b.power);
+    });
+    document.getElementById("totalPower").textContent=sum.toFixed(0);
+}
+
+const client = mqtt.connect(BROKER);
 
 client.on("connect",()=>{
-  statusEl.innerHTML='MQTT: <span class="ok">połączono</span>';
-  client.subscribe(`${PREFIX}/${DEVICE}/#`);
+    document.getElementById("mqttStatus").textContent="MQTT: połączono";
+    client.subscribe(`${PREFIX}/#`);
 });
 
-client.on("reconnect",()=>statusEl.textContent="MQTT: ponawianie…");
-client.on("close",()=>statusEl.innerHTML='MQTT: <span class="err">rozłączono</span>');
-client.on("error",()=>statusEl.innerHTML='MQTT: <span class="err">błąd</span>');
+client.on("reconnect",()=>{
+    document.getElementById("mqttStatus").textContent="MQTT: ponowne łączenie...";
+});
 
-client.on("message",(topic,payload)=>{
-  if(!topic.endsWith("/state")) return;
+client.on("error",(err)=>{
+    document.getElementById("mqttStatus").textContent="MQTT: błąd";
+    console.error(err);
+});
 
-  const nt = norm(topic);
-  const val = payload.toString();
+client.on("message",(topic,message)=>{
+    const payload = message.toString();
+    const parts = topic.split("/");
 
-  let bank=-1;
-  if(nt.includes("jk_bms_1")) bank=1;
-  if(nt.includes("jk_bms_2")) bank=2;
-  if(nt.includes("jk_bms_3")) bank=3;
-  if(bank===-1) return;
+    // szukamy numeru banku
+    const sensor = parts[parts.length-2]; // object_id
+    const match = sensor.match(/jk_bms_(\d+)_(.*)/);
+    if(!match) return;
 
-  if(nt.includes("total_voltage")) setVal(`b${bank}_voltage`,val,2);
-  else if(nt.includes("current")) setVal(`b${bank}_current`,val,1,true);
-  else if(nt.includes("power")) setVal(`b${bank}_power`,val,0,true);
-  else if(nt.includes("soc")) setVal(`b${bank}_soc`,val,1);
-  else if(nt.includes("battery_capacity")) setVal(`b${bank}_capacity`,val,1);
-  else if(nt.includes("max_cell")) setVal(`b${bank}_maxcell`,val,3);
-  else if(nt.includes("min_cell")) setVal(`b${bank}_mincell`,val,3);
-  else if(nt.includes("balancer_current")) setVal(`b${bank}_balancer`,val,2);
+    const bank = parseInt(match[1]);
+    const key = match[2];
+
+    banks[bank][key]=payload;
+
+    const el = document.getElementById(`b${bank}_${key}`);
+    if(el){
+        let unit="";
+        if(key==="voltage"||key==="max_cell"||key==="min_cell") unit=" V";
+        if(key==="current"||key==="balancer_current") unit=" A";
+        if(key==="power") unit=" W";
+        if(key==="soc") unit=" %";
+        if(key==="battery_capacity") unit=" Ah";
+        updateUI(bank,key,payload+unit);
+    }
+
+    updateTotal();
 });
 </script>
 
