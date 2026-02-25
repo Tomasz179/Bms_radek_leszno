@@ -79,6 +79,7 @@ h1{
 <script>
 // === KONFIGURACJA ===
 const BROKER = "wss://broker.hivemq.com:8884/mqtt"; // WSS dla HTTPS
+const PREFIX = "bms_radek_leszno";
 const banks = {1:{},2:{},3:{}};
 const container = document.getElementById("banks");
 const log = document.getElementById("log");
@@ -140,8 +141,8 @@ const client = mqtt.connect(BROKER);
 
 client.on("connect",()=>{
     document.getElementById("mqttStatus").textContent="MQTT: połączono";
-    // subskrybujemy wszystko tymczasowo
-    client.subscribe("#");
+    // subskrybujemy wszystkie tematy prefiksu BMS
+    client.subscribe(`${PREFIX}/#`);
 });
 
 client.on("error",(err)=>{
@@ -152,14 +153,16 @@ client.on("error",(err)=>{
 // odbieranie wiadomości
 client.on("message",(topic,message)=>{
     const payload = message.toString();
+
     // log do przeglądarki
     const div = document.createElement("div");
     div.textContent = `Topic: ${topic} → ${payload}`;
     log.appendChild(div);
     log.scrollTop = log.scrollHeight; // przewiń do końca
 
-    // dopasowanie topicu do banku
-    const match = topic.match(/(?:.*\/)?jk_bms_(\d+)_(\w+)\/state$/);
+    // dopasowanie topicu: obsługuje prefiks PREFIX i numer banku
+    const regex = new RegExp(`^${PREFIX}\/jk_bms_(\\d+)_(\\w+)\/state$`);
+    const match = topic.match(regex);
     if(!match) return;
 
     const bank = parseInt(match[1]);
