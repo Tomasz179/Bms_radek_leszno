@@ -141,26 +141,6 @@ h1{
   color:#4fc3f7;
   margin-top:2px;
 }
-
-.cell-voltages{
-  display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(60px,1fr));
-  gap:4px;
-  margin-top:8px;
-}
-
-.cell{
-  display:flex;
-  align-items:center;
-  font-size:0.85em;
-  justify-content:center;
-  gap:2px;
-  color:#fff;
-}
-
-.cell-icon{
-  font-size:0.9em;
-}
 </style>
 </head>
 
@@ -170,79 +150,95 @@ h1{
 MQTT: <b id="mqttStatus">—</b> <span id="diag"></span>
 </div>
 
-<div class="grid" id="grid"></div>
+<div class="grid">
+  <!-- BMS 1 -->
+  <div class="card" id="bms1Card">
+    <div class="bms-title">Magazyn 1</div>
+    <span class="label">Napięcie</span><div class="value"><span id="bms1_v">—</span><span class="unit">V</span></div>
+    <span class="label">Prąd</span><div class="value"><span id="bms1_a">—</span><span class="unit">A</span></div>
+    <span class="label">Moc</span><div class="value"><span id="bms1_w">—</span><span class="unit">W</span></div>
+    <span class="label">SOC</span>
+    <div class="soc-bar">
+      <div class="soc-fill" id="bms1_soc"></div>
+      <span class="soc-text" id="bms1_soc_text">—%</span>
+    </div>
+    <span class="label">Pozostała pojemność</span>
+    <div class="value capacity"><span id="bms1_cap">—</span><span class="unit">Ah</span></div>
+    <span class="label">Balancer</span><div class="value balancer"><span id="bms1_bal">—</span><span class="unit">A</span></div>
+  </div>
+
+  <!-- BMS 2 -->
+  <div class="card" id="bms2Card">
+    <div class="bms-title">Magazyn 2</div>
+    <span class="label">Napięcie</span><div class="value"><span id="bms2_v">—</span><span class="unit">V</span></div>
+    <span class="label">Prąd</span><div class="value"><span id="bms2_a">—</span><span class="unit">A</span></div>
+    <span class="label">Moc</span><div class="value"><span id="bms2_w">—</span><span class="unit">W</span></div>
+    <span class="label">SOC</span>
+    <div class="soc-bar">
+      <div class="soc-fill" id="bms2_soc"></div>
+      <span class="soc-text" id="bms2_soc_text">—%</span>
+    </div>
+    <span class="label">Pozostała pojemność</span>
+    <div class="value capacity"><span id="bms2_cap">—</span><span class="unit">Ah</span></div>
+    <span class="label">Balancer</span><div class="value balancer"><span id="bms2_bal">—</span><span class="unit">A</span></div>
+  </div>
+
+  <!-- BMS 3 -->
+  <div class="card" id="bms3Card">
+    <div class="bms-title">Magazyn 3</div>
+    <span class="label">Napięcie</span><div class="value"><span id="bms3_v">—</span><span class="unit">V</span></div>
+    <span class="label">Prąd</span><div class="value"><span id="bms3_a">—</span><span class="unit">A</span></div>
+    <span class="label">Moc</span><div class="value"><span id="bms3_w">—</span><span class="unit">W</span></div>
+    <span class="label">SOC</span>
+    <div class="soc-bar">
+      <div class="soc-fill" id="bms3_soc"></div>
+      <span class="soc-text" id="bms3_soc_text">—%</span>
+    </div>
+    <span class="label">Pozostała pojemność</span>
+    <div class="value capacity"><span id="bms3_cap">—</span><span class="unit">Ah</span></div>
+    <span class="label">Balancer</span><div class="value balancer"><span id="bms3_bal">—</span><span class="unit">A</span></div>
+  </div>
+</div>
 
 <script>
 (() => {
   const PREFIX = "bms_radek_leszno";
-  const WS_URL = "ws://broker.hivemq.com:8000/mqtt";
+  const WS_URL = "wss://broker.hivemq.com:8884/mqtt";
 
-  const BMS_IDS = ['bms1','bms2','bms3'];
+  const TOPICS = {
+    bms1_v: `${PREFIX}/sensor/jk-bms_1_voltage/state`,
+    bms1_a: `${PREFIX}/sensor/jk-bms_1_current/state`,
+    bms1_w: `${PREFIX}/sensor/jk-bms_1_power/state`,
+    bms1_soc: `${PREFIX}/sensor/jk-bms_1_soc/state`,
+    bms1_bal: `${PREFIX}/sensor/jk-bms_1_balancer_current/state`,
+    bms1_cap: `${PREFIX}/sensor/jk-bms_1_battery_capacity/state`,
 
-  // --- GENERUJ KARTY ---
-  const grid = document.getElementById('grid');
-  BMS_IDS.forEach(bms=>{
-    const card = document.createElement('div');
-    card.className='card';
-    card.id=bms+'Card';
-    card.innerHTML=`
-      <div class="bms-title">${bms.toUpperCase()}</div>
-      <span class="label">Napięcie</span><div class="value"><span id="${bms}_v">—</span><span class="unit">V</span></div>
-      <span class="label">Prąd</span><div class="value"><span id="${bms}_a">—</span><span class="unit">A</span></div>
-      <span class="label">Moc</span><div class="value"><span id="${bms}_w">—</span><span class="unit">W</span></div>
-      <span class="label">SOC</span>
-      <div class="soc-bar">
-        <div class="soc-fill" id="${bms}_soc"></div>
-        <span class="soc-text" id="${bms}_soc_text">—%</span>
-      </div>
-      <span class="label">Pozostała pojemność</span>
-      <div class="value capacity"><span id="${bms}_cap">—</span><span class="unit">Ah</span></div>
-      <span class="label">Balancer</span><div class="value balancer"><span id="${bms}_bal">—</span><span class="unit">A</span></div>
-      <span class="label">Napięcia ogniw</span>
-      <div class="cell-voltages" id="${bms}_cells">
-        ${Array.from({length:16},(_,i)=>`<div class="cell"><span class="cell-icon">🔋</span> <span id="${bms}_cell_${i+1}">—</span>V</div>`).join('')}
-      </div>
-    `;
-    grid.appendChild(card);
-  });
+    bms2_v: `${PREFIX}/sensor/jk-bms_2_voltage/state`,
+    bms2_a: `${PREFIX}/sensor/jk-bms_2_current/state`,
+    bms2_w: `${PREFIX}/sensor/jk-bms_2_power/state`,
+    bms2_soc: `${PREFIX}/sensor/jk-bms_2_soc/state`,
+    bms2_bal: `${PREFIX}/sensor/jk-bms_2_balancer_current/state`,
+    bms2_cap: `${PREFIX}/sensor/jk-bms_2_battery_capacity/state`,
 
-  // --- PRZYPISANIE ELEMENTÓW ---
+    bms3_v: `${PREFIX}/sensor/jk-bms_3_voltage/state`,
+    bms3_a: `${PREFIX}/sensor/jk-bms_3_current/state`,
+    bms3_w: `${PREFIX}/sensor/jk-bms_3_power/state`,
+    bms3_soc: `${PREFIX}/sensor/jk-bms_3_soc/state`,
+    bms3_bal: `${PREFIX}/sensor/jk-bms_3_balancer_current/state`,
+    bms3_cap: `${PREFIX}/sensor/jk-bms_3_battery_capacity/state`,
+  };
+
   const el = {};
-  BMS_IDS.forEach(bms=>{
-    el[bms+'_v'] = document.getElementById(bms+'_v');
-    el[bms+'_a'] = document.getElementById(bms+'_a');
-    el[bms+'_w'] = document.getElementById(bms+'_w');
-    el[bms+'_soc'] = document.getElementById(bms+'_soc');
-    el[bms+'_bal'] = document.getElementById(bms+'_bal');
-    el[bms+'_cap'] = document.getElementById(bms+'_cap');
-    for(let i=1;i<=16;i++){
-      el[`${bms}_cell_${i}`] = document.getElementById(`${bms}_cell_${i}`);
-    }
-  });
+  Object.keys(TOPICS).forEach(k => el[k] = document.getElementById(k));
   el.mqttStatus = document.getElementById('mqttStatus');
   el.diag = document.getElementById('diag');
 
-  // --- TOPICS ---
-  const TOPICS = {};
-  BMS_IDS.forEach(bms=>{
-    TOPICS[bms+'_v'] = `${PREFIX}/sensor/${bms}_voltage/state`;
-    TOPICS[bms+'_a'] = `${PREFIX}/sensor/${bms}_current/state`;
-    TOPICS[bms+'_w'] = `${PREFIX}/sensor/${bms}_power/state`;
-    TOPICS[bms+'_soc'] = `${PREFIX}/sensor/${bms}_soc/state`;
-    TOPICS[bms+'_bal'] = `${PREFIX}/sensor/${bms}_balancer_current/state`;
-    TOPICS[bms+'_cap'] = `${PREFIX}/sensor/${bms}_battery_capacity/state`;
-    for(let i=1;i<=16;i++){
-      TOPICS[`${bms}_cell_${i}`] = `${PREFIX}/sensor/${bms}_cell_${i}/state`;
-    }
-  });
-
   function num(v){ const m=String(v).match(/-?\d+(?:[.,]\d+)?/); return m?parseFloat(m[0].replace(',','.')):NaN; }
-  const fmt=n=>isNaN(n)?"—":n.toFixed(3).replace('.',',');
+  const fmt=n=>isNaN(n)?"—":n.toFixed(1).replace('.',',');
 
-  // --- MQTT ---
   const client = mqtt.connect(WS_URL, {clientId:"web_"+Math.random().toString(16).slice(2)});
-  client.on('connect',()=>{
-    el.mqttStatus.textContent="połączono";
+  client.on('connect',()=>{ 
+    el.mqttStatus.textContent="połączono"; 
     Object.values(TOPICS).forEach(t=>client.subscribe(t));
   });
 
@@ -252,6 +248,7 @@ MQTT: <b id="mqttStatus">—</b> <span id="diag"></span>
   client.on('message',(t,p)=>{
     msg++; last=Date.now(); diag();
     const v=num(p.toString());
+
     Object.keys(TOPICS).forEach(k=>{
       if(t===TOPICS[k]){
         if(k.includes('soc')){
