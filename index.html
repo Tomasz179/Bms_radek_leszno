@@ -1,200 +1,270 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Magazyny Energii – Dashboard</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Magazyny Energii – Dashboard</title>
 
-  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
-  <style>
-    :root { --card-w: 1200px; }
+<style>
+:root{
+  --card-w: 1200px;
+  --primary: #4fc3f7;
+  --secondary: #81d4fa;
+  --danger: #ff5252;
+}
 
-    body {
-      font-family: Arial, sans-serif;
-      padding: 20px;
-      color: #111;
-      min-height: 100vh;
-      margin: 0;
-      background: linear-gradient(to bottom, #0f2027, #203a43, #2c5364);
-    }
+body{
+  margin:0;
+  font-family:'Segoe UI',Arial,sans-serif;
+  background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+  color:#fff;
+  min-height:100vh;
+  overflow-x:hidden;
+}
 
-    h1 {
-      text-align: center;
-      margin: 8px 0 20px;
-      color: #fff;
-      text-shadow: 2px 2px 8px rgba(0,0,0,0.6);
-    }
+body::before{
+  content:"";
+  position:fixed;
+  inset:0;
+  background: url('https://www.transparenttextures.com/patterns/asfalt-light.png') repeat;
+  opacity:0.05;
+  z-index:-1;
+}
 
-    #status {
-      max-width: var(--card-w);
-      margin: 0.5rem auto 1rem;
-      font-size: 14px;
-      text-align: center;
-      color: #fff;
-    }
+h1{
+  text-align:center;
+  margin:20px 0 10px;
+  font-size:2em;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.6);
+  letter-spacing:1px;
+}
 
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 15px;
-      max-width: var(--card-w);
-      margin: 0 auto;
-    }
+#status{
+  text-align:center;
+  font-size:14px;
+  margin-bottom:30px;
+  color:#ddd;
+}
 
-    .card {
-      background: rgba(255, 255, 255, 0.95);
-      padding: 15px;
-      border-radius: 16px;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.2);
-    }
+.grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+  gap:20px;
+  max-width:var(--card-w);
+  margin:0 auto;
+  padding-bottom:40px;
+}
 
-    .label { font-weight: bold; }
-    .value { float: right; font-weight: 700; min-width: 90px; text-align: right; display: inline-block; }
-    .unit { margin-left: 4px; color: #666; font-weight: 500; }
+.card{
+  background: rgba(255,255,255,0.1);
+  backdrop-filter: blur(12px);
+  border-radius:16px;
+  padding:20px 24px;
+  box-shadow:0 8px 20px rgba(0,0,0,0.4);
+  transition: transform 0.25s, box-shadow 0.25s;
+  position:relative;
+  overflow:hidden;
+}
 
-    .cell-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 6px;
-      margin-top: 10px;
-    }
+.card:hover{
+  transform: translateY(-5px);
+  box-shadow:0 16px 40px rgba(0,0,0,0.6);
+}
 
-    .cell {
-      background: rgba(200, 230, 250, 0.9);
-      padding: 5px;
-      border-radius: 8px;
-      text-align: center;
-      font-size: 12px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-    }
+.bms-title{
+  font-size:1.3em;
+  font-weight:bold;
+  margin-bottom:12px;
+  color:#fff;
+  text-align:center;
+  text-shadow:0 1px 2px rgba(0,0,0,0.5);
+}
 
-    .bms-header {
-      font-size: 16px;
-      font-weight: bold;
-      margin-bottom: 8px;
-      text-align: center;
-      color: #333;
-    }
+.label{
+  display:block;
+  font-weight:500;
+  color:#ccc;
+  font-size:0.95em;
+}
 
-    .bms-soc {
-      margin-top: 6px;
-      text-align: center;
-      font-weight: 600;
-      color: #111;
-    }
+.value{
+  display:flex;
+  justify-content: space-between;
+  align-items:center;
+  font-weight:700;
+  font-size:1.4em;
+  margin:4px 0 12px;
+}
 
-  </style>
+.unit{
+  font-size:0.9em;
+  font-weight:500;
+  color:#eee;
+  margin-left:6px;
+}
+
+.soc-bar{
+  height:12px;
+  border-radius:8px;
+  background: rgba(255,255,255,0.15);
+  margin-top:4px;
+  overflow:hidden;
+  position:relative;
+}
+
+.soc-fill{
+  height:100%;
+  width:0%;
+  background: linear-gradient(90deg, #4caf50, #81c784);
+  transition: width 0.4s ease;
+}
+
+.soc-text{
+  position:absolute;
+  right:6px;
+  top:-2px;
+  font-size:0.85em;
+  color:#fff;
+  font-weight:600;
+}
+
+.balancer{
+  color: #ff5252;
+  font-weight:700;
+  font-size:1.1em;
+}
+
+.capacity{
+  font-size:1em;
+  color:#4fc3f7;
+  margin-top:2px;
+}
+</style>
 </head>
 
 <body>
-  <h1>Magazyny Energii – Dashboard</h1>
-  <div id="status">
-    MQTT: <b id="mqttStatus">—</b>
-    <span id="diag"></span>
+<h1>Magazyny Energii – Dashboard</h1>
+<div id="status">
+MQTT: <b id="mqttStatus">—</b> <span id="diag"></span>
+</div>
+
+<div class="grid">
+  <!-- BMS 1 -->
+  <div class="card" id="bms1Card">
+    <div class="bms-title">Magazyn 1</div>
+    <span class="label">Napięcie</span><div class="value"><span id="bms1_v">—</span><span class="unit">V</span></div>
+    <span class="label">Prąd</span><div class="value"><span id="bms1_a">—</span><span class="unit">A</span></div>
+    <span class="label">Moc</span><div class="value"><span id="bms1_w">—</span><span class="unit">W</span></div>
+    <span class="label">SOC</span>
+    <div class="soc-bar">
+      <div class="soc-fill" id="bms1_soc"></div>
+      <span class="soc-text" id="bms1_soc_text">—%</span>
+    </div>
+    <span class="label">Pozostała pojemność</span>
+    <div class="value capacity"><span id="bms1_cap">—</span><span class="unit">Ah</span></div>
+    <span class="label">Balancer</span><div class="value balancer"><span id="bms1_bal">—</span><span class="unit">A</span></div>
   </div>
 
-  <div class="grid" id="bmsGrid"></div>
+  <!-- BMS 2 -->
+  <div class="card" id="bms2Card">
+    <div class="bms-title">Magazyn 2</div>
+    <span class="label">Napięcie</span><div class="value"><span id="bms2_v">—</span><span class="unit">V</span></div>
+    <span class="label">Prąd</span><div class="value"><span id="bms2_a">—</span><span class="unit">A</span></div>
+    <span class="label">Moc</span><div class="value"><span id="bms2_w">—</span><span class="unit">W</span></div>
+    <span class="label">SOC</span>
+    <div class="soc-bar">
+      <div class="soc-fill" id="bms2_soc"></div>
+      <span class="soc-text" id="bms2_soc_text">—%</span>
+    </div>
+    <span class="label">Pozostała pojemność</span>
+    <div class="value capacity"><span id="bms2_cap">—</span><span class="unit">Ah</span></div>
+    <span class="label">Balancer</span><div class="value balancer"><span id="bms2_bal">—</span><span class="unit">A</span></div>
+  </div>
+
+  <!-- BMS 3 -->
+  <div class="card" id="bms3Card">
+    <div class="bms-title">Magazyn 3</div>
+    <span class="label">Napięcie</span><div class="value"><span id="bms3_v">—</span><span class="unit">V</span></div>
+    <span class="label">Prąd</span><div class="value"><span id="bms3_a">—</span><span class="unit">A</span></div>
+    <span class="label">Moc</span><div class="value"><span id="bms3_w">—</span><span class="unit">W</span></div>
+    <span class="label">SOC</span>
+    <div class="soc-bar">
+      <div class="soc-fill" id="bms3_soc"></div>
+      <span class="soc-text" id="bms3_soc_text">—%</span>
+    </div>
+    <span class="label">Pozostała pojemność</span>
+    <div class="value capacity"><span id="bms3_cap">—</span><span class="unit">Ah</span></div>
+    <span class="label">Balancer</span><div class="value balancer"><span id="bms3_bal">—</span><span class="unit">A</span></div>
+  </div>
+</div>
 
 <script>
 (() => {
   const PREFIX = "bms_radek_leszno";
-  const WS_URL = "ws://broker.hivemq.com:8000/mqtt"; // jeśli działa w przeglądarce, użyj ws:// lub wss://
+  const WS_URL = "wss://broker.hivemq.com:8884/mqtt";
 
-  const BMS_LIST = [
-    {id:'1', name:'jk-bms_1'},
-    {id:'2', name:'jk-bms_2'},
-    {id:'3', name:'jk-bms_3'}
-  ];
+  const TOPICS = {
+    bms1_v: `${PREFIX}/sensor/jk-bms_1_voltage/state`,
+    bms1_a: `${PREFIX}/sensor/jk-bms_1_current/state`,
+    bms1_w: `${PREFIX}/sensor/jk-bms_1_power/state`,
+    bms1_soc: `${PREFIX}/sensor/jk-bms_1_soc/state`,
+    bms1_bal: `${PREFIX}/sensor/jk-bms_1_balancer_current/state`,
+    bms1_cap: `${PREFIX}/sensor/jk-bms_1_battery_capacity/state`,
 
-  const MQTT_TOPICS = {};
-  const bmsElements = {};
+    bms2_v: `${PREFIX}/sensor/jk-bms_2_voltage/state`,
+    bms2_a: `${PREFIX}/sensor/jk-bms_2_current/state`,
+    bms2_w: `${PREFIX}/sensor/jk-bms_2_power/state`,
+    bms2_soc: `${PREFIX}/sensor/jk-bms_2_soc/state`,
+    bms2_bal: `${PREFIX}/sensor/jk-bms_2_balancer_current/state`,
+    bms2_cap: `${PREFIX}/sensor/jk-bms_2_battery_capacity/state`,
 
-  // generujemy wszystkie topic dla 3 BMS
-  BMS_LIST.forEach(bms=>{
-    MQTT_TOPICS[bms.name] = {
-      voltage: `${PREFIX}/sensor/${bms.name}_voltage/state`,
-      soc: `${PREFIX}/sensor/${bms.name}_soc/state`,
-      capacity: `${PREFIX}/sensor/${bms.name}_battery_capacity/state`,
-      balancer: `${PREFIX}/sensor/${bms.name}_balancer_current/state`,
-      cell: []
-    };
-    for(let i=1;i<=16;i++){
-      MQTT_TOPICS[bms.name].cell.push(`${PREFIX}/sensor/${bms.name}_cell_voltage_${i}/state`);
-    }
+    bms3_v: `${PREFIX}/sensor/jk-bms_3_voltage/state`,
+    bms3_a: `${PREFIX}/sensor/jk-bms_3_current/state`,
+    bms3_w: `${PREFIX}/sensor/jk-bms_3_power/state`,
+    bms3_soc: `${PREFIX}/sensor/jk-bms_3_soc/state`,
+    bms3_bal: `${PREFIX}/sensor/jk-bms_3_balancer_current/state`,
+    bms3_cap: `${PREFIX}/sensor/jk-bms_3_battery_capacity/state`,
+  };
+
+  const el = {};
+  Object.keys(TOPICS).forEach(k => el[k] = document.getElementById(k));
+  el.mqttStatus = document.getElementById('mqttStatus');
+  el.diag = document.getElementById('diag');
+
+  function num(v){ const m=String(v).match(/-?\d+(?:[.,]\d+)?/); return m?parseFloat(m[0].replace(',','.')):NaN; }
+  const fmt=n=>isNaN(n)?"—":n.toFixed(1).replace('.',',');
+
+  const client = mqtt.connect(WS_URL, {clientId:"web_"+Math.random().toString(16).slice(2)});
+  client.on('connect',()=>{ 
+    el.mqttStatus.textContent="połączono"; 
+    Object.values(TOPICS).forEach(t=>client.subscribe(t));
   });
 
-  // tworzymy dashboard w DOM
-  const grid = document.getElementById('bmsGrid');
-  BMS_LIST.forEach(bms=>{
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.innerHTML = `
-      <div class="bms-header">${bms.name}</div>
-      <div><span class="label">Voltage</span><span class="value" id="${bms.name}_voltage">—</span><span class="unit">V</span></div>
-      <div><span class="label">SOC</span><span class="value" id="${bms.name}_soc">—</span><span class="unit">%</span></div>
-      <div class="bms-soc" id="${bms.name}_soc_percent">—</div>
-      <div><span class="label">Capacity Remaining</span><span class="value" id="${bms.name}_capacity">—</span><span class="unit">Ah</span></div>
-      <div><span class="label">Balancer Current</span><span class="value" id="${bms.name}_balancer">—</span><span class="unit">A</span></div>
-      <div class="cell-grid" id="${bms.name}_cells"></div>
-    `;
-    grid.appendChild(card);
-
-    const cellGrid = card.querySelector(`#${bms.name}_cells`);
-    bmsElements[bms.name] = {
-      voltage: card.querySelector(`#${bms.name}_voltage`),
-      soc: card.querySelector(`#${bms.name}_soc`),
-      soc_percent: card.querySelector(`#${bms.name}_soc_percent`),
-      capacity: card.querySelector(`#${bms.name}_capacity`),
-      balancer: card.querySelector(`#${bms.name}_balancer`),
-      cells: []
-    };
-
-    for(let i=0;i<16;i++){
-      const cellDiv = document.createElement('div');
-      cellDiv.className = 'cell';
-      cellDiv.id = `${bms.name}_cell_${i+1}`;
-      cellDiv.textContent = `—`;
-      cellGrid.appendChild(cellDiv);
-      bmsElements[bms.name].cells.push(cellDiv);
-    }
-  });
-
-  const fmt = n => isNaN(n)?"—":Number(n).toFixed(2);
-
-  const client = mqtt.connect(WS_URL,{clientId:"web_"+Math.random().toString(16).slice(2)});
-
-  client.on('connect',()=>{
-    document.getElementById('mqttStatus').textContent = "połączono";
-    Object.values(MQTT_TOPICS).forEach(b=>{
-      client.subscribe([b.voltage, b.soc, b.capacity, b.balancer, ...b.cell]);
-    });
-  });
-
-  let msg=0, last=0;
-  const diag=()=>{ document.getElementById('diag').innerHTML = ` | msg: <b>${msg}</b> | last: <b>${last?new Date(last).toLocaleTimeString():"—"}</b>`; };
+  let msg=0,last=0;
+  const diag=()=> el.diag.innerHTML=` | msg: <b>${msg}</b> | last: <b>${last?new Date(last).toLocaleTimeString():"—"}</b>`;
 
   client.on('message',(t,p)=>{
     msg++; last=Date.now(); diag();
-    const val = parseFloat(p.toString());
+    const v=num(p.toString());
 
-    BMS_LIST.forEach(bms=>{
-      const b = MQTT_TOPICS[bms.name];
-      const e = bmsElements[bms.name];
-      if(t===b.voltage) e.voltage.textContent = fmt(val);
-      if(t===b.soc) { e.soc.textContent = fmt(val); e.soc_percent.textContent = `${fmt(val)} %`; }
-      if(t===b.capacity) e.capacity.textContent = fmt(val);
-      if(t===b.balancer) e.balancer.textContent = fmt(val);
-      b.cell.forEach((cTopic,i)=>{
-        if(t===cTopic) e.cells[i].textContent = fmt(val)+" V";
-      });
+    Object.keys(TOPICS).forEach(k=>{
+      if(t===TOPICS[k]){
+        if(k.includes('soc')){
+          el[k].style.width = Math.min(100, Math.max(0,v)) + '%';
+          document.getElementById(k+'_text').textContent = fmt(v) + '%';
+        } else {
+          el[k].textContent = fmt(v);
+        }
+      }
     });
   });
 
-  client.on('offline',()=>document.getElementById('mqttStatus').textContent="offline");
-  client.on('error',()=>document.getElementById('mqttStatus').textContent="błąd");
-
+  client.on('offline',()=>el.mqttStatus.textContent="offline");
+  client.on('error',()=>el.mqttStatus.textContent="błąd");
 })();
 </script>
+
 </body>
 </html>
