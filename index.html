@@ -1,163 +1,85 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Magazyn Energii – 3x JK BMS</title>
-
-<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-
-<style>
-body{
-    font-family: Arial, sans-serif;
-    background:#0d1117;
-    color:#e6edf3;
-    margin:0;
-    padding:20px;
-}
-h1{
-    text-align:center;
-}
-.status{
-    text-align:center;
-    margin-bottom:20px;
-    font-weight:bold;
-}
-.section{
-    border:1px solid #30363d;
-    border-radius:12px;
-    padding:20px;
-    margin-bottom:25px;
-}
-.grid{
-    display:grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px,1fr));
-    gap:15px;
-}
-.card{
-    border:1px solid #30363d;
-    border-radius:10px;
-    padding:15px;
-    background:#161b22;
-}
-.label{
-    font-size:14px;
-    color:#8b949e;
-}
-.value{
-    font-size:22px;
-    margin-top:5px;
-}
-.charge{ color:#2ecc71; }
-.discharge{ color:#e74c3c; }
-.total{
-    font-size:28px;
-    text-align:center;
-    margin:15px 0 30px 0;
-}
-</style>
+  <meta charset="UTF-8">
+  <title>JK-BMS Monitor</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f0f0f0; padding: 20px; }
+    h1 { color: #333; }
+    .bms { background: #fff; padding: 15px; margin: 10px 0; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);}
+    .bms h2 { margin-top: 0; }
+    .sensor { margin: 5px 0; }
+  </style>
 </head>
 <body>
+  <h1>Monitor 3x JK-BMS</h1>
 
-<h1>Magazyn Energii – 3x JK BMS</h1>
-<div class="status" id="mqttStatus">MQTT: łączenie...</div>
-<div class="total">Suma mocy: <span id="totalPower">0</span> W</div>
+  <div class="bms" id="bms1">
+    <h2>BMS 1</h2>
+    <div class="sensor">Voltage: <span id="bms1_voltage">---</span></div>
+    <div class="sensor">Current: <span id="bms1_current">---</span></div>
+    <div class="sensor">Power: <span id="bms1_power">---</span></div>
+    <div class="sensor">SOC: <span id="bms1_soc">---</span></div>
+    <div class="sensor">Capacity: <span id="bms1_capacity">---</span></div>
+    <div class="sensor">Balancer: <span id="bms1_balancer">---</span></div>
+  </div>
 
-<div id="banks"></div>
+  <div class="bms" id="bms2">
+    <h2>BMS 2</h2>
+    <div class="sensor">Voltage: <span id="bms2_voltage">---</span></div>
+    <div class="sensor">Current: <span id="bms2_current">---</span></div>
+    <div class="sensor">Power: <span id="bms2_power">---</span></div>
+    <div class="sensor">SOC: <span id="bms2_soc">---</span></div>
+    <div class="sensor">Capacity: <span id="bms2_capacity">---</span></div>
+    <div class="sensor">Balancer: <span id="bms2_balancer">---</span></div>
+  </div>
 
-<script>
-const WS_URL = "wss://broker.hivemq.com:8884/mqtt";
-const PREFIX = "bms_radek_leszno";
+  <div class="bms" id="bms3">
+    <h2>BMS 3</h2>
+    <div class="sensor">Voltage: <span id="bms3_voltage">---</span></div>
+    <div class="sensor">Current: <span id="bms3_current">---</span></div>
+    <div class="sensor">Power: <span id="bms3_power">---</span></div>
+    <div class="sensor">SOC: <span id="bms3_soc">---</span></div>
+    <div class="sensor">Capacity: <span id="bms3_capacity">---</span></div>
+    <div class="sensor">Balancer: <span id="bms3_balancer">---</span></div>
+  </div>
 
-const banks = {
-    1:{}, 2:{}, 3:{}
-};
+  <!-- MQTT.js -->
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script>
+    // połącz z brokerem MQTT
+    const client = mqtt.connect('wss://broker.hivemq.com:8000/mqtt');
 
-const container = document.getElementById("banks");
+    client.on('connect', function () {
+      console.log('Połączono z brokerem MQTT');
 
-function createBankUI(bankNumber){
-    const bankName = `jk-bms_${bankNumber}`;
-    const section = document.createElement("div");
-    section.className="section";
-    section.innerHTML=`
-        <h2>Magazyn ${bankNumber}</h2>
-        <div class="grid">
-            ${card(bankNumber,"voltage","V")}
-            ${card(bankNumber,"current","A")}
-            ${card(bankNumber,"power","W")}
-            ${card(bankNumber,"soc","%")}
-            ${card(bankNumber,"battery_capacity","Ah")}
-            ${card(bankNumber,"max_cell","V")}
-            ${card(bankNumber,"min_cell","V")}
-            ${card(bankNumber,"balancer_current","A")}
-        </div>
-    `;
-    container.appendChild(section);
-}
-
-function card(bank,key,unit){
-    return `
-    <div class="card">
-        <div class="label">${key.replace("_"," ")}</div>
-        <div class="value" id="b${bank}_${key}">${unit==="%"?"-- %":"-- "+unit}</div>
-    </div>`;
-}
-
-[1,2,3].forEach(createBankUI);
-
-function updateUI(bank,key,value){
-    const el = document.getElementById(`b${bank}_${key}`);
-    if(!el) return;
-    el.textContent = value;
-
-    if(key==="power"){
-        el.classList.remove("charge","discharge");
-        if(parseFloat(value)>0) el.classList.add("charge");
-        if(parseFloat(value)<0) el.classList.add("discharge");
-    }
-}
-
-function updateTotal(){
-    let sum=0;
-    Object.values(banks).forEach(b=>{
-        if(b.power) sum+=parseFloat(b.power);
+      // subskrybuj wszystkie tematy sensorów
+      const sensors = ['voltage','current','power','soc','battery_capacity','balancer_current'];
+      for(let i=1; i<=3; i++) {
+        sensors.forEach(sensor => {
+          client.subscribe(`bms_radek_leszno/sensor/jk-bms_${i}_${sensor}/state`);
+        });
+      }
     });
-    document.getElementById("totalPower").textContent=sum.toFixed(0);
-}
 
-const client = mqtt.connect(WS_URL);
-
-client.on("connect",()=>{
-    console.log("Połączono z brokerem MQTT");
-    document.getElementById("mqttStatus").textContent="MQTT: połączono";
-    client.subscribe(PREFIX+"/sensor/+/+/state",(err)=>{
-        if(err) console.log("Błąd subskrypcji:", err);
-        else console.log("Subskrybowano wszystkie sensory");
+    client.on('message', function(topic, message) {
+      const value = message.toString();
+      // dopasuj topic do odpowiedniego elementu
+      const regex = /jk-bms_(\d+)_(\w+)\/state/;
+      const match = topic.match(regex);
+      if(match){
+        const bmsNum = match[1];
+        let sensorName = match[2];
+        // zamień _ na przyjazne nazwy w HTML
+        if(sensorName === 'battery_capacity') sensorName = 'capacity';
+        if(sensorName === 'balancer_current') sensorName = 'balancer';
+        document.getElementById(`bms${bmsNum}_${sensorName}`).innerText = value;
+      }
     });
-});
 
-client.on("message",(topic,message)=>{
-    const payload = message.toString();
-    console.log("Otrzymano:", topic, payload);
-
-    // topic: bms_radek_leszno/sensor/jk-bms_1_voltage/state
-    const match = topic.match(/jk-bms_(\d+)_(\w+)\/state$/);
-    if(!match) return;
-
-    const bank = parseInt(match[1]);
-    const key = match[2];
-
-    banks[bank][key] = payload;
-    updateUI(bank,key,payload);
-    updateTotal();
-});
-
-client.on("error",(err)=>{
-    console.error("MQTT ERROR:", err);
-    document.getElementById("mqttStatus").textContent="MQTT: błąd";
-});
-
-</script>
-
+    client.on('error', function(err) {
+      console.error('MQTT Error:', err);
+    });
+  </script>
 </body>
 </html>
