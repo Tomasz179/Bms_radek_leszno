@@ -170,48 +170,61 @@ h1{
 MQTT: <b id="mqttStatus">—</b> <span id="diag"></span>
 </div>
 
-<div class="grid">
-  <!-- Funkcja do wygenerowania karty BMS -->
-  <script>
-    function createBmsCard(id, title){
-      const card = document.createElement('div');
-      card.className='card';
-      card.id=id+'Card';
-      card.innerHTML=`
-        <div class="bms-title">${title}</div>
-        <span class="label">Napięcie</span><div class="value"><span id="${id}_v">—</span><span class="unit">V</span></div>
-        <span class="label">Prąd</span><div class="value"><span id="${id}_a">—</span><span class="unit">A</span></div>
-        <span class="label">Moc</span><div class="value"><span id="${id}_w">—</span><span class="unit">W</span></div>
-        <span class="label">SOC</span>
-        <div class="soc-bar">
-          <div class="soc-fill" id="${id}_soc"></div>
-          <span class="soc-text" id="${id}_soc_text">—%</span>
-        </div>
-        <span class="label">Pozostała pojemność</span>
-        <div class="value capacity"><span id="${id}_cap">—</span><span class="unit">Ah</span></div>
-        <span class="label">Balancer</span><div class="value balancer"><span id="${id}_bal">—</span><span class="unit">A</span></div>
-        <span class="label">Napięcia ogniw</span>
-        <div class="cell-voltages" id="${id}_cells">
-          ${Array.from({length:16},(_,i)=>`<div class="cell"><span class="cell-icon">🔋</span> <span class="cell-value" id="${id}_cell_${i+1}">—</span>V</div>`).join('')}
-        </div>
-      `;
-      document.querySelector('.grid').appendChild(card);
-    }
-
-    createBmsCard('bms1','Magazyn 1');
-    createBmsCard('bms2','Magazyn 2');
-    createBmsCard('bms3','Magazyn 3');
-  </script>
-</div>
+<div class="grid" id="grid"></div>
 
 <script>
 (() => {
   const PREFIX = "bms_radek_leszno";
-  const WS_URL = "wss://broker.hivemq.com:8884/mqtt";
+  const WS_URL = "ws://broker.hivemq.com:8000/mqtt";
 
+  const BMS_IDS = ['bms1','bms2','bms3'];
+
+  // --- GENERUJ KARTY ---
+  const grid = document.getElementById('grid');
+  BMS_IDS.forEach(bms=>{
+    const card = document.createElement('div');
+    card.className='card';
+    card.id=bms+'Card';
+    card.innerHTML=`
+      <div class="bms-title">${bms.toUpperCase()}</div>
+      <span class="label">Napięcie</span><div class="value"><span id="${bms}_v">—</span><span class="unit">V</span></div>
+      <span class="label">Prąd</span><div class="value"><span id="${bms}_a">—</span><span class="unit">A</span></div>
+      <span class="label">Moc</span><div class="value"><span id="${bms}_w">—</span><span class="unit">W</span></div>
+      <span class="label">SOC</span>
+      <div class="soc-bar">
+        <div class="soc-fill" id="${bms}_soc"></div>
+        <span class="soc-text" id="${bms}_soc_text">—%</span>
+      </div>
+      <span class="label">Pozostała pojemność</span>
+      <div class="value capacity"><span id="${bms}_cap">—</span><span class="unit">Ah</span></div>
+      <span class="label">Balancer</span><div class="value balancer"><span id="${bms}_bal">—</span><span class="unit">A</span></div>
+      <span class="label">Napięcia ogniw</span>
+      <div class="cell-voltages" id="${bms}_cells">
+        ${Array.from({length:16},(_,i)=>`<div class="cell"><span class="cell-icon">🔋</span> <span id="${bms}_cell_${i+1}">—</span>V</div>`).join('')}
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+
+  // --- PRZYPISANIE ELEMENTÓW ---
+  const el = {};
+  BMS_IDS.forEach(bms=>{
+    el[bms+'_v'] = document.getElementById(bms+'_v');
+    el[bms+'_a'] = document.getElementById(bms+'_a');
+    el[bms+'_w'] = document.getElementById(bms+'_w');
+    el[bms+'_soc'] = document.getElementById(bms+'_soc');
+    el[bms+'_bal'] = document.getElementById(bms+'_bal');
+    el[bms+'_cap'] = document.getElementById(bms+'_cap');
+    for(let i=1;i<=16;i++){
+      el[`${bms}_cell_${i}`] = document.getElementById(`${bms}_cell_${i}`);
+    }
+  });
+  el.mqttStatus = document.getElementById('mqttStatus');
+  el.diag = document.getElementById('diag');
+
+  // --- TOPICS ---
   const TOPICS = {};
-
-  ['bms1','bms2','bms3'].forEach(bms=>{
+  BMS_IDS.forEach(bms=>{
     TOPICS[bms+'_v'] = `${PREFIX}/sensor/${bms}_voltage/state`;
     TOPICS[bms+'_a'] = `${PREFIX}/sensor/${bms}_current/state`;
     TOPICS[bms+'_w'] = `${PREFIX}/sensor/${bms}_power/state`;
@@ -219,21 +232,17 @@ MQTT: <b id="mqttStatus">—</b> <span id="diag"></span>
     TOPICS[bms+'_bal'] = `${PREFIX}/sensor/${bms}_balancer_current/state`;
     TOPICS[bms+'_cap'] = `${PREFIX}/sensor/${bms}_battery_capacity/state`;
     for(let i=1;i<=16;i++){
-      TOPICS[`${bms}_cell_${i}`] = `${PREFIX}/sensor/${bms}_cell_voltage_${i}/state`;
+      TOPICS[`${bms}_cell_${i}`] = `${PREFIX}/sensor/${bms}_cell_${i}/state`;
     }
   });
-
-  const el = {};
-  Object.keys(TOPICS).forEach(k => el[k] = document.getElementById(k));
-  el.mqttStatus = document.getElementById('mqttStatus');
-  el.diag = document.getElementById('diag');
 
   function num(v){ const m=String(v).match(/-?\d+(?:[.,]\d+)?/); return m?parseFloat(m[0].replace(',','.')):NaN; }
   const fmt=n=>isNaN(n)?"—":n.toFixed(3).replace('.',',');
 
+  // --- MQTT ---
   const client = mqtt.connect(WS_URL, {clientId:"web_"+Math.random().toString(16).slice(2)});
-  client.on('connect',()=>{ 
-    el.mqttStatus.textContent="połączono"; 
+  client.on('connect',()=>{
+    el.mqttStatus.textContent="połączono";
     Object.values(TOPICS).forEach(t=>client.subscribe(t));
   });
 
@@ -243,7 +252,6 @@ MQTT: <b id="mqttStatus">—</b> <span id="diag"></span>
   client.on('message',(t,p)=>{
     msg++; last=Date.now(); diag();
     const v=num(p.toString());
-
     Object.keys(TOPICS).forEach(k=>{
       if(t===TOPICS[k]){
         if(k.includes('soc')){
