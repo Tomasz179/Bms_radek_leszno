@@ -62,95 +62,96 @@ h1{
 <h1>Magazyn Energii – 3x JK BMS</h1>
 <div class="status" id="mqttStatus">MQTT: łączenie...</div>
 <div class="total">Suma mocy: <span id="totalPower">0</span> W</div>
+
 <div id="banks"></div>
 
 <script>
-const WS_URL = "wss://broker.hivemq.com:8884/mqtt";
+const BROKER = "wss://broker.hivemq.com:8884/mqtt";
 const TOPIC_PREFIX = "bms_radek_leszno";
 
-// Definicja magazynów
 const banks = {
-    bms0:{}, bms1:{}, bms2:{}
+    "jk-bms_1":{},
+    "jk-bms_2":{},
+    "jk-bms_3":{}
 };
 
-// Tworzymy UI
 const container = document.getElementById("banks");
-const bankIds = ["bms0","bms1","bms2"];
-const fields = ["voltage","current","power","soc","battery_capacity","max_cell","min_cell","balancer_current"];
 
-function createBankUI(bankId){
+function createBankUI(name){
     const section = document.createElement("div");
     section.className="section";
-    section.innerHTML = `<h2>${bankId.toUpperCase()}</h2><div class="grid"></div>`;
-    const grid = section.querySelector(".grid");
-    fields.forEach(f=>{
-        const cardEl = document.createElement("div");
-        cardEl.className="card";
-        cardEl.innerHTML = `<div class="label">${f.replace("_"," ")}</div><div class="value" id="${bankId}_${f}">--</div>`;
-        grid.appendChild(cardEl);
-    });
+    section.innerHTML=`
+        <h2>${name}</h2>
+        <div class="grid">
+            ${card("Voltage","voltage","V")}
+            ${card("Current","current","A")}
+            ${card("Power","power","W")}
+            ${card("SOC","soc","%")}
+            ${card("Capacity","battery_capacity","Ah")}
+            ${card("Max Cell","max_cell","V")}
+            ${card("Min Cell","min_cell","V")}
+            ${card("Balancer","balancer_current","A")}
+        </div>
+    `;
     container.appendChild(section);
 }
 
-bankIds.forEach(createBankUI);
+function card(label,id,unit){
+    return `
+    <div class="card">
+        <div class="label">${label}</div>
+        <div class="value" id="${id}">${unit==="%"?"-- %":"-- "+unit}</div>
+    </div>`;
+}
 
-// Aktualizacja UI
-function updateUI(bankId,key,value){
-    const el = document.getElementById(`${bankId}_${key}`);
+["jk-bms_1","jk-bms_2","jk-bms_3"].forEach(createBankUI);
+
+function updateUI(bank,key,value){
+    const el = document.getElementById(key);
     if(!el) return;
+
     el.textContent = value;
 
     if(key==="power"){
         el.classList.remove("charge","discharge");
-        const num = parseFloat(value);
-        if(num>0) el.classList.add("charge");
-        if(num<0) el.classList.add("discharge");
+        if(parseFloat(value)>0) el.classList.add("charge");
+        if(parseFloat(value)<0) el.classList.add("discharge");
     }
 }
 
 function updateTotal(){
-    let sum = 0;
-    bankIds.forEach(b=>{
-        const val = parseFloat(banks[b].power);
-        if(!isNaN(val)) sum += val;
+    let sum=0;
+    Object.values(banks).forEach(b=>{
+        if(b.power) sum+=parseFloat(b.power);
     });
-    document.getElementById("totalPower").textContent = sum.toFixed(0);
+    document.getElementById("totalPower").textContent=sum.toFixed(0);
 }
 
-// Połączenie MQTT
-const client = mqtt.connect(WS_URL);
+// MQTT
+const client = mqtt.connect(BROKER);
 
 client.on("connect",()=>{
     document.getElementById("mqttStatus").textContent="MQTT: połączono";
-    // subskrybujemy wszystkie sensory
-    client.subscribe(`${TOPIC_PREFIX}/#`);
+    client.subscribe(`${TOPIC_PREFIX}/sensor/+/state`);
 });
 
 client.on("message",(topic,message)=>{
     const payload = message.toString();
-    const match = topic.match(`${TOPIC_PREFIX}/(bms[0-2])/(\\w+)`);
+
+    // dopasuj do /sensor/<sensor_name>/state
+    const match = topic.match(/sensor\/(.+?)\/state$/);
     if(!match) return;
 
-    const bank = match[1];
-    const key = match[2];
+    const fullName = match[1]; // np. jk-bms_1_voltage
+    const parts = fullName.split("_");
+    if(parts.length<3) return;
+
+    const bank = parts[0]+"_"+parts[1]; // jk-bms_1
+    const key = parts.slice(2).join("_"); // voltage, current itp.
 
     banks[bank][key] = payload;
-
-    // dodanie jednostki
-    let unit = "";
-    if(["voltage","max_cell","min_cell"].includes(key)) unit=" V";
-    if(["current","balancer_current"].includes(key)) unit=" A";
-    if(key==="power") unit=" W";
-    if(key==="soc") unit=" %";
-    if(key==="battery_capacity") unit=" Ah";
-
-    updateUI(bank,key,payload + unit);
+    updateUI(bank,key,payload);
     updateTotal();
-});
-
-client.on("error",(err)=>{
-    console.error("MQTT Error:", err);
-    document.getElementById("mqttStatus").textContent="MQTT: błąd";
 });
 </script>
 
