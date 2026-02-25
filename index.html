@@ -127,45 +127,27 @@ function updateTotal(){
 
 const client = mqtt.connect(BROKER);
 
-client.on("connect",()=>{
-    document.getElementById("mqttStatus").textContent="MQTT: połączono";
-    client.subscribe(`${PREFIX}/#`);
-});
-
-client.on("reconnect",()=>{
-    document.getElementById("mqttStatus").textContent="MQTT: ponowne łączenie...";
-});
-
-client.on("error",(err)=>{
-    document.getElementById("mqttStatus").textContent="MQTT: błąd";
-    console.error(err);
-});
-
 client.on("message",(topic,message)=>{
-    const payload = message.toString();
-    const parts = topic.split("/");
 
-    // szukamy numeru banku
-    const sensor = parts[parts.length-2]; // object_id
-    const match = sensor.match(/jk_bms_(\d+)_(.*)/);
+    const payload = message.toString();
+
+    // wyciągamy object_id niezależnie od struktury
+    const match = topic.match(/jk_bms_(\d+)_(\w+)\/state$/);
     if(!match) return;
 
     const bank = parseInt(match[1]);
     const key = match[2];
 
-    banks[bank][key]=payload;
+    banks[bank][key] = payload;
 
-    const el = document.getElementById(`b${bank}_${key}`);
-    if(el){
-        let unit="";
-        if(key==="voltage"||key==="max_cell"||key==="min_cell") unit=" V";
-        if(key==="current"||key==="balancer_current") unit=" A";
-        if(key==="power") unit=" W";
-        if(key==="soc") unit=" %";
-        if(key==="battery_capacity") unit=" Ah";
-        updateUI(bank,key,payload+unit);
-    }
+    let unit="";
+    if(key==="voltage"||key==="max_cell"||key==="min_cell") unit=" V";
+    if(key==="current"||key==="balancer_current") unit=" A";
+    if(key==="power") unit=" W";
+    if(key==="soc") unit=" %";
+    if(key==="battery_capacity") unit=" Ah";
 
+    updateUI(bank,key,payload+unit);
     updateTotal();
 });
 </script>
