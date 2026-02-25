@@ -55,6 +55,15 @@ h1{
     text-align:center;
     margin:15px 0 30px 0;
 }
+#log{
+    margin-top:20px;
+    max-height:300px;
+    overflow-y:auto;
+    border:1px solid #30363d;
+    padding:10px;
+    font-size:12px;
+    background:#0b0f13;
+}
 </style>
 </head>
 <body>
@@ -62,16 +71,17 @@ h1{
 <h1>Magazyn Energii – 3x JK BMS</h1>
 <div class="status" id="mqttStatus">MQTT: łączenie...</div>
 <div class="total">Suma mocy: <span id="totalPower">0</span> W</div>
-
 <div id="banks"></div>
+
+<h2>Log przychodzących wiadomości</h2>
+<div id="log"></div>
 
 <script>
 // === KONFIGURACJA ===
 const BROKER = "wss://broker.hivemq.com:8884/mqtt"; // WSS dla HTTPS
-const PREFIX = "bms_radek_leszno";
-
 const banks = {1:{},2:{},3:{}};
 const container = document.getElementById("banks");
+const log = document.getElementById("log");
 
 // === TWORZENIE UI DLA BANKÓW ===
 function createBankUI(n){
@@ -108,7 +118,6 @@ function card(label,key,unit,bank){
 function updateUI(bank,key,value){
     const el = document.getElementById(`b${bank}_${key}`);
     if(!el) return;
-
     el.textContent = value;
 
     if(key==="power"){
@@ -131,11 +140,8 @@ const client = mqtt.connect(BROKER);
 
 client.on("connect",()=>{
     document.getElementById("mqttStatus").textContent="MQTT: połączono";
-
-    // subskrybujemy wszystkie tematy banków
-    for(let i=1;i<=3;i++){
-        client.subscribe(`#`); // subskrypcja wszystkiego dla testu
-    }
+    // subskrybujemy wszystko tymczasowo
+    client.subscribe("#");
 });
 
 client.on("error",(err)=>{
@@ -146,9 +152,13 @@ client.on("error",(err)=>{
 // odbieranie wiadomości
 client.on("message",(topic,message)=>{
     const payload = message.toString();
-    console.log("Received:", topic, payload); // debug
+    // log do przeglądarki
+    const div = document.createElement("div");
+    div.textContent = `Topic: ${topic} → ${payload}`;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight; // przewiń do końca
 
-    // dopasowanie topicu: obsługuje prefiks lub brak prefiksu
+    // dopasowanie topicu do banku
     const match = topic.match(/(?:.*\/)?jk_bms_(\d+)_(\w+)\/state$/);
     if(!match) return;
 
