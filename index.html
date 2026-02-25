@@ -66,44 +66,47 @@ h1{
 <div id="banks"></div>
 
 <script>
-const WS_URL = "wss://broker.hivemq.com:8884/mqtt";
+// === KONFIGURACJA ===
+const BROKER = "wss://broker.hivemq.com:8884/mqtt"; // WSS dla HTTPS
 const PREFIX = "bms_radek_leszno";
 
-const banks = {
-    1:{}, 2:{}, 3:{}
-};
+// struktura danych dla banków
+const banks = {1:{},2:{},3:{}};
 
 const container = document.getElementById("banks");
 
+// === TWORZENIE UI DLA BANKÓW ===
 function createBankUI(n){
     const section = document.createElement("div");
     section.className="section";
     section.innerHTML=`
         <h2>Magazyn ${n}</h2>
         <div class="grid">
-            ${card("Voltage","voltage","V")}
-            ${card("Current","current","A")}
-            ${card("Power","power","W")}
-            ${card("SOC","soc","%")}
-            ${card("Capacity","battery_capacity","Ah")}
-            ${card("Max Cell","max_cell","V")}
-            ${card("Min Cell","min_cell","V")}
-            ${card("Balancer","balancer_current","A")}
+            ${card("Voltage","voltage","V",n)}
+            ${card("Current","current","A",n)}
+            ${card("Power","power","W",n)}
+            ${card("SOC","soc","%","n")}
+            ${card("Capacity","battery_capacity","Ah",n)}
+            ${card("Max Cell","max_cell","V",n)}
+            ${card("Min Cell","min_cell","V",n)}
+            ${card("Balancer","balancer_current","A",n)}
         </div>
     `;
     container.appendChild(section);
 }
 
-function card(label,id,unit){
+function card(label,key,unit,bank){
     return `
     <div class="card">
         <div class="label">${label}</div>
-        <div class="value" id="b${id}">${unit==="%"?"-- %":"-- "+unit}</div>
+        <div class="value" id="b${bank}_${key}">${unit==="%"?"-- %":"-- "+unit}</div>
     </div>`;
 }
 
+// generujemy UI dla 3 banków
 [1,2,3].forEach(createBankUI);
 
+// === FUNKCJE AKTUALIZACJI UI ===
 function updateUI(bank,key,value){
     const el = document.getElementById(`b${bank}_${key}`);
     if(!el) return;
@@ -125,13 +128,28 @@ function updateTotal(){
     document.getElementById("totalPower").textContent=sum.toFixed(0);
 }
 
+// === POŁĄCZENIE MQTT ===
 const client = mqtt.connect(BROKER);
 
-client.on("message",(topic,message)=>{
+client.on("connect",()=>{
+    document.getElementById("mqttStatus").textContent="MQTT: połączono";
 
+    // subskrybujemy wszystkie tematy dla banków
+    for(let i=1;i<=3;i++){
+        client.subscribe(`jk_bms_${i}/+/state`);
+    }
+});
+
+client.on("error",(err)=>{
+    document.getElementById("mqttStatus").textContent="MQTT: błąd połączenia";
+    console.error(err);
+});
+
+// odbieranie wiadomości
+client.on("message",(topic,message)=>{
     const payload = message.toString();
 
-    // wyciągamy object_id niezależnie od struktury
+    // wyciągamy bank i klucz
     const match = topic.match(/jk_bms_(\d+)_(\w+)\/state$/);
     if(!match) return;
 
