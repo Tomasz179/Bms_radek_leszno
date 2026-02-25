@@ -1,85 +1,216 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-  <meta charset="UTF-8">
-  <title>JK-BMS Monitor</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Magazyny Energii – Dashboard</title>
+
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
   <style>
-    body { font-family: Arial, sans-serif; background: #f0f0f0; padding: 20px; }
-    h1 { color: #333; }
-    .bms { background: #fff; padding: 15px; margin: 10px 0; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);}
-    .bms h2 { margin-top: 0; }
-    .sensor { margin: 5px 0; }
+    :root{ --card-w:1100px; }
+
+    body{
+      font-family: Arial, sans-serif;
+      padding:20px;
+      color:#111;
+      min-height:100vh;
+      margin:0;
+      background:#000;
+    }
+
+    .bg{
+      position: fixed;
+      inset: 0;
+      z-index: -2;
+      overflow: hidden;
+      background: url("assets/battery_bg.webp") center top / cover no-repeat;
+    }
+
+    .ui-overlay{
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: -1;
+      background: linear-gradient(
+        to bottom,
+        rgba(255,255,255,0.00) 0%,
+        rgba(255,255,255,0.08) 35%,
+        rgba(255,255,255,0.18) 100%
+      );
+    }
+
+    #app{ position: relative; z-index: 1; }
+
+    h1{
+      text-align:center;
+      margin:8px 0 14px;
+      text-shadow:0 1px 0 rgba(255,255,255,0.6);
+    }
+
+    #status{
+      max-width:var(--card-w);
+      margin:0.5rem auto 1rem;
+      font-size:12px;
+      text-align:center;
+      text-shadow:0 1px 0 rgba(255,255,255,0.6);
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));
+      gap:12px;
+      max-width:var(--card-w);
+      margin:0 auto;
+    }
+
+    .card{
+      background: rgba(255,255,255,0.92);
+      padding:15px;
+      border-radius:14px;
+      box-shadow:0 10px 22px rgba(0,0,0,0.14);
+    }
+
+    .label{ font-weight:bold; }
+    .value{
+      float:right;
+      font-weight:700;
+      min-width: 90px;
+      text-align:right;
+      display:inline-block;
+    }
+    .unit{ margin-left:4px; color:#666; font-weight:500 }
+
+    .soc-bar { display:inline-block; width:100px; height:15px; background:#ccc; border-radius:8px; overflow:hidden; vertical-align:middle; }
+    .soc-fill { height:100%; width:0%; background:green; transition: width 0.3s; }
+
+    .balancer-on { color:green; font-weight:bold; }
+    .balancer-off { color:gray; font-weight:normal; }
   </style>
 </head>
+
 <body>
-  <h1>Monitor 3x JK-BMS</h1>
 
-  <div class="bms" id="bms1">
-    <h2>BMS 1</h2>
-    <div class="sensor">Voltage: <span id="bms1_voltage">---</span></div>
-    <div class="sensor">Current: <span id="bms1_current">---</span></div>
-    <div class="sensor">Power: <span id="bms1_power">---</span></div>
-    <div class="sensor">SOC: <span id="bms1_soc">---</span></div>
-    <div class="sensor">Capacity: <span id="bms1_capacity">---</span></div>
-    <div class="sensor">Balancer: <span id="bms1_balancer">---</span></div>
+<div class="bg"></div>
+<div class="ui-overlay"></div>
+
+<div id="app">
+  <h1>Magazyny Energii – Dashboard</h1>
+
+  <div id="status">
+    MQTT: <b id="mqttStatus">—</b>
+    <span id="diag"></span>
   </div>
 
-  <div class="bms" id="bms2">
-    <h2>BMS 2</h2>
-    <div class="sensor">Voltage: <span id="bms2_voltage">---</span></div>
-    <div class="sensor">Current: <span id="bms2_current">---</span></div>
-    <div class="sensor">Power: <span id="bms2_power">---</span></div>
-    <div class="sensor">SOC: <span id="bms2_soc">---</span></div>
-    <div class="sensor">Capacity: <span id="bms2_capacity">---</span></div>
-    <div class="sensor">Balancer: <span id="bms2_balancer">---</span></div>
+  <div class="grid">
+    <!-- BMS 1 -->
+    <div class="card" id="bms1_card">
+      <span class="label">BMS 1 – Napięcie</span>
+      <span class="value"><span id="bms1_voltage">—</span> <span class="unit">V</span></span><br>
+      <span class="label">Prąd</span>
+      <span class="value"><span id="bms1_current">—</span> <span class="unit">A</span></span><br>
+      <span class="label">Moc</span>
+      <span class="value"><span id="bms1_power">—</span> <span class="unit">W</span></span><br>
+      <span class="label">SOC</span>
+      <span class="value">
+        <span class="soc-bar"><span id="bms1_soc_fill" class="soc-fill"></span></span>
+        <span id="bms1_soc_text">—</span> %
+      </span><br>
+      <span class="label">Pojemność</span>
+      <span class="value"><span id="bms1_capacity">—</span> <span class="unit">Ah</span></span><br>
+      <span class="label">Balancer</span>
+      <span class="value"><span id="bms1_balancer" class="balancer-off">—</span></span>
+    </div>
+
+    <!-- BMS 2 -->
+    <div class="card" id="bms2_card">
+      <span class="label">BMS 2 – Napięcie</span>
+      <span class="value"><span id="bms2_voltage">—</span> <span class="unit">V</span></span><br>
+      <span class="label">Prąd</span>
+      <span class="value"><span id="bms2_current">—</span> <span class="unit">A</span></span><br>
+      <span class="label">Moc</span>
+      <span class="value"><span id="bms2_power">—</span> <span class="unit">W</span></span><br>
+      <span class="label">SOC</span>
+      <span class="value">
+        <span class="soc-bar"><span id="bms2_soc_fill" class="soc-fill"></span></span>
+        <span id="bms2_soc_text">—</span> %
+      </span><br>
+      <span class="label">Pojemność</span>
+      <span class="value"><span id="bms2_capacity">—</span> <span class="unit">Ah</span></span><br>
+      <span class="label">Balancer</span>
+      <span class="value"><span id="bms2_balancer" class="balancer-off">—</span></span>
+    </div>
+
+    <!-- BMS 3 -->
+    <div class="card" id="bms3_card">
+      <span class="label">BMS 3 – Napięcie</span>
+      <span class="value"><span id="bms3_voltage">—</span> <span class="unit">V</span></span><br>
+      <span class="label">Prąd</span>
+      <span class="value"><span id="bms3_current">—</span> <span class="unit">A</span></span><br>
+      <span class="label">Moc</span>
+      <span class="value"><span id="bms3_power">—</span> <span class="unit">W</span></span><br>
+      <span class="label">SOC</span>
+      <span class="value">
+        <span class="soc-bar"><span id="bms3_soc_fill" class="soc-fill"></span></span>
+        <span id="bms3_soc_text">—</span> %
+      </span><br>
+      <span class="label">Pojemność</span>
+      <span class="value"><span id="bms3_capacity">—</span> <span class="unit">Ah</span></span><br>
+      <span class="label">Balancer</span>
+      <span class="value"><span id="bms3_balancer" class="balancer-off">—</span></span>
+    </div>
   </div>
+</div>
 
-  <div class="bms" id="bms3">
-    <h2>BMS 3</h2>
-    <div class="sensor">Voltage: <span id="bms3_voltage">---</span></div>
-    <div class="sensor">Current: <span id="bms3_current">---</span></div>
-    <div class="sensor">Power: <span id="bms3_power">---</span></div>
-    <div class="sensor">SOC: <span id="bms3_soc">---</span></div>
-    <div class="sensor">Capacity: <span id="bms3_capacity">---</span></div>
-    <div class="sensor">Balancer: <span id="bms3_balancer">---</span></div>
-  </div>
+<script>
+(() => {
+  const PREFIX = "bms_radek_leszno";
+  const WS_URL = "wss://broker.hivemq.com:8000/mqtt";
 
-  <!-- MQTT.js -->
-  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-  <script>
-    // połącz z brokerem MQTT
-    const client = mqtt.connect('wss://broker.hivemq.com:8000/mqtt');
+  const client = mqtt.connect(WS_URL, {clientId:"web_"+Math.random().toString(16).slice(2)});
 
-    client.on('connect', function () {
-      console.log('Połączono z brokerem MQTT');
+  const sensors = ['voltage','current','power','soc','battery_capacity','balancer_current'];
 
-      // subskrybuj wszystkie tematy sensorów
-      const sensors = ['voltage','current','power','soc','battery_capacity','balancer_current'];
-      for(let i=1; i<=3; i++) {
-        sensors.forEach(sensor => {
-          client.subscribe(`bms_radek_leszno/sensor/jk-bms_${i}_${sensor}/state`);
-        });
-      }
-    });
+  client.on('connect', () => {
+    document.getElementById('mqttStatus').textContent = "połączono";
+    for(let i=1;i<=3;i++){
+      sensors.forEach(sensor => {
+        client.subscribe(`${PREFIX}/sensor/jk-bms_${i}_${sensor}/state`);
+      });
+    }
+  });
 
-    client.on('message', function(topic, message) {
-      const value = message.toString();
-      // dopasuj topic do odpowiedniego elementu
-      const regex = /jk-bms_(\d+)_(\w+)\/state/;
-      const match = topic.match(regex);
-      if(match){
-        const bmsNum = match[1];
-        let sensorName = match[2];
-        // zamień _ na przyjazne nazwy w HTML
-        if(sensorName === 'battery_capacity') sensorName = 'capacity';
-        if(sensorName === 'balancer_current') sensorName = 'balancer';
-        document.getElementById(`bms${bmsNum}_${sensorName}`).innerText = value;
-      }
-    });
+  function fmt(v){ return isNaN(v)?"—":parseFloat(v).toFixed(1); }
 
-    client.on('error', function(err) {
-      console.error('MQTT Error:', err);
-    });
-  </script>
+  client.on('message', (topic, msg) => {
+    const val = parseFloat(msg.toString());
+    const regex = /jk-bms_(\d+)_(\w+)\/state/;
+    const m = topic.match(regex);
+    if(!m) return;
+    const num = m[1], sensor = m[2];
+    if(sensor==='battery_capacity') sensorName='capacity';
+    else if(sensor==='balancer_current') sensorName='balancer';
+    else sensorName = sensor;
+
+    const el = document.getElementById(`bms${num}_${sensorName}`);
+    if(!el) return;
+
+    if(sensorName==='soc'){
+      document.getElementById(`bms${num}_soc_fill`).style.width = val+'%';
+      document.getElementById(`bms${num}_soc_fill`).style.background = val<20?'red':val<50?'orange':'green';
+      document.getElementById(`bms${num}_soc_text`).textContent = fmt(val);
+    } else if(sensorName==='balancer'){
+      el.textContent = val>0?'ON':'OFF';
+      el.className = val>0?'balancer-on':'balancer-off';
+    } else {
+      el.textContent = fmt(val);
+    }
+  });
+
+  client.on('offline',()=>document.getElementById('mqttStatus').textContent="offline");
+  client.on('error',()=>document.getElementById('mqttStatus').textContent="błąd");
+})();
+</script>
+
 </body>
 </html>
