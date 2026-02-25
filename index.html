@@ -2,32 +2,157 @@
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
-<title>MQTT Debug</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Magazyn Energii – 3x JK BMS</title>
+
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+<style>
+body{
+    font-family: Arial, sans-serif;
+    background:#0d1117;
+    color:#e6edf3;
+    margin:0;
+    padding:20px;
+}
+h1{
+    text-align:center;
+}
+.status{
+    text-align:center;
+    margin-bottom:20px;
+    font-weight:bold;
+}
+.section{
+    border:1px solid #30363d;
+    border-radius:12px;
+    padding:20px;
+    margin-bottom:25px;
+}
+.grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px,1fr));
+    gap:15px;
+}
+.card{
+    border:1px solid #30363d;
+    border-radius:10px;
+    padding:15px;
+    background:#161b22;
+}
+.label{
+    font-size:14px;
+    color:#8b949e;
+}
+.value{
+    font-size:22px;
+    margin-top:5px;
+}
+.charge{ color:#2ecc71; }
+.discharge{ color:#e74c3c; }
+.total{
+    font-size:28px;
+    text-align:center;
+    margin:15px 0 30px 0;
+}
+</style>
 </head>
 <body>
-<h1>MQTT Debug</h1>
-<div id="log" style="white-space:pre-wrap;"></div>
+
+<h1>Magazyn Energii – 3x JK BMS</h1>
+<div class="status" id="mqttStatus">MQTT: łączenie...</div>
+<div class="total">Suma mocy: <span id="totalPower">0</span> W</div>
+<div id="banks"></div>
 
 <script>
-const log = document.getElementById("log");
-const BROKER = "wss://broker.hivemq.com:8884/mqtt"; // WSS dla HTTPS
+const WS_URL = "wss://broker.hivemq.com:8884/mqtt";
+const TOPIC_PREFIX = "bms_radek_leszno";
 
-const client = mqtt.connect(BROKER);
+// Definicja magazynów
+const banks = {
+    bms0:{}, bms1:{}, bms2:{}
+};
 
-client.on("connect", ()=>{
-    log.innerText += "Połączono z brokerem\n";
-    client.subscribe("#"); // wszystko
+// Tworzymy UI
+const container = document.getElementById("banks");
+const bankIds = ["bms0","bms1","bms2"];
+const fields = ["voltage","current","power","soc","battery_capacity","max_cell","min_cell","balancer_current"];
+
+function createBankUI(bankId){
+    const section = document.createElement("div");
+    section.className="section";
+    section.innerHTML = `<h2>${bankId.toUpperCase()}</h2><div class="grid"></div>`;
+    const grid = section.querySelector(".grid");
+    fields.forEach(f=>{
+        const cardEl = document.createElement("div");
+        cardEl.className="card";
+        cardEl.innerHTML = `<div class="label">${f.replace("_"," ")}</div><div class="value" id="${bankId}_${f}">--</div>`;
+        grid.appendChild(cardEl);
+    });
+    container.appendChild(section);
+}
+
+bankIds.forEach(createBankUI);
+
+// Aktualizacja UI
+function updateUI(bankId,key,value){
+    const el = document.getElementById(`${bankId}_${key}`);
+    if(!el) return;
+    el.textContent = value;
+
+    if(key==="power"){
+        el.classList.remove("charge","discharge");
+        const num = parseFloat(value);
+        if(num>0) el.classList.add("charge");
+        if(num<0) el.classList.add("discharge");
+    }
+}
+
+function updateTotal(){
+    let sum = 0;
+    bankIds.forEach(b=>{
+        const val = parseFloat(banks[b].power);
+        if(!isNaN(val)) sum += val;
+    });
+    document.getElementById("totalPower").textContent = sum.toFixed(0);
+}
+
+// Połączenie MQTT
+const client = mqtt.connect(WS_URL);
+
+client.on("connect",()=>{
+    document.getElementById("mqttStatus").textContent="MQTT: połączono";
+    // subskrybujemy wszystkie sensory
+    client.subscribe(`${TOPIC_PREFIX}/#`);
 });
 
-client.on("message", (topic, message)=>{
-    log.innerText += `Topic: ${topic} → ${message.toString()}\n`;
-    log.scrollTop = log.scrollHeight;
+client.on("message",(topic,message)=>{
+    const payload = message.toString();
+    const match = topic.match(`${TOPIC_PREFIX}/(bms[0-2])/(\\w+)`);
+    if(!match) return;
+
+    const bank = match[1];
+    const key = match[2];
+
+    banks[bank][key] = payload;
+
+    // dodanie jednostki
+    let unit = "";
+    if(["voltage","max_cell","min_cell"].includes(key)) unit=" V";
+    if(["current","balancer_current"].includes(key)) unit=" A";
+    if(key==="power") unit=" W";
+    if(key==="soc") unit=" %";
+    if(key==="battery_capacity") unit=" Ah";
+
+    updateUI(bank,key,payload + unit);
+    updateTotal();
 });
 
-client.on("error", (err)=>{
-    log.innerText += `Błąd: ${err}\n`;
+client.on("error",(err)=>{
+    console.error("MQTT Error:", err);
+    document.getElementById("mqttStatus").textContent="MQTT: błąd";
 });
 </script>
+
 </body>
 </html>
