@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Magazyny Energii – Dashboard</title>
 
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
@@ -21,16 +21,6 @@ body{
   background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
   color:#fff;
   min-height:100vh;
-  overflow-x:hidden;
-}
-
-body::before{
-  content:"";
-  position:fixed;
-  inset:0;
-  background: url('https://www.transparenttextures.com/patterns/asfalt-light.png') repeat;
-  opacity:0.05;
-  z-index:-1;
 }
 
 h1{
@@ -50,7 +40,7 @@ h1{
 
 .grid{
   display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+  grid-template-columns:repeat(auto-fit,minmax(320px,1fr));
   gap:20px;
   max-width:var(--card-w);
   margin:0 auto;
@@ -58,12 +48,11 @@ h1{
 }
 
 .card{
-  background: rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.08);
   backdrop-filter: blur(12px);
   border-radius:16px;
-  padding:20px 24px;
+  padding:20px;
   box-shadow:0 8px 20px rgba(0,0,0,0.4);
-  transition: transform 0.25s, box-shadow 0.25s;
   position:relative;
   overflow:hidden;
 }
@@ -71,6 +60,7 @@ h1{
 .card:hover{
   transform: translateY(-5px);
   box-shadow:0 16px 40px rgba(0,0,0,0.6);
+  transition:0.25s;
 }
 
 .bms-title{
@@ -82,122 +72,142 @@ h1{
   text-shadow:0 1px 2px rgba(0,0,0,0.5);
 }
 
-.label{
-  display:block;
-  font-weight:500;
-  color:#ccc;
-  font-size:0.95em;
-}
+.label{ display:block; font-weight:500; color:#ccc; font-size:0.95em; }
+.value{ display:flex; justify-content: space-between; align-items:center; font-weight:700; font-size:1.4em; margin:4px 0 12px; }
+.unit{ font-size:0.9em; font-weight:500; color:#eee; margin-left:6px; }
 
-.value{
-  display:flex;
-  justify-content: space-between;
-  align-items:center;
-  font-weight:700;
-  font-size:1.4em;
-  margin:4px 0 12px;
-}
+.soc-bar{ height:12px; border-radius:8px; background: rgba(255,255,255,0.15); margin-top:4px; overflow:hidden; position:relative; }
+.soc-fill{ height:100%; width:0%; background: linear-gradient(90deg, #4caf50, #81c784); transition: width 0.4s ease; }
+.soc-text{ position:absolute; right:6px; top:-2px; font-size:0.85em; color:#fff; font-weight:600; }
 
-.unit{
-  font-size:0.9em;
-  font-weight:500;
-  color:#eee;
-  margin-left:6px;
-}
+.capacity{ font-size:1em; color:#4fc3f7; margin-top:2px; }
+.balancer{ color:#ff5252; font-weight:700; font-size:1.1em; }
 
-.soc-bar{
-  height:12px;
-  border-radius:8px;
-  background: rgba(255,255,255,0.15);
-  margin-top:4px;
-  overflow:hidden;
-  position:relative;
+.cells{
+  display:grid;
+  grid-template-columns:repeat(8,1fr);
+  gap:6px;
+  margin-top:10px;
 }
-
-.soc-fill{
-  height:100%;
-  width:0%;
-  background: linear-gradient(90deg, #4caf50, #81c784);
-  transition: width 0.4s ease;
+.cell{
+  background: rgba(255,255,255,0.1);
+  border-radius:6px;
+  padding:6px;
+  font-size:0.8em;
+  text-align:center;
+  transition:0.3s;
 }
-
-.soc-text{
-  position:absolute;
-  right:6px;
-  top:-2px;
-  font-size:0.85em;
-  color:#fff;
-  font-weight:600;
-}
-
-.balancer{
-  color: #ff5252;
-  font-weight:700;
-  font-size:1.1em;
-}
-
-.capacity{
-  font-size:1em;
-  color:#4fc3f7;
-  margin-top:2px;
-}
+.cell span{ display:block; margin-top:4px; font-size:0.9em; color:#fff; font-weight:600; }
 </style>
 </head>
-
 <body>
+
 <h1>Magazyny Energii – Dashboard</h1>
 <div id="status">
 MQTT: <b id="mqttStatus">—</b> <span id="diag"></span>
 </div>
 
 <div class="grid">
-  <!-- BMS 1 -->
+  <!-- MAGAZYN CARD TEMPLATE -->
   <div class="card" id="bms1Card">
     <div class="bms-title">Magazyn 1</div>
     <span class="label">Napięcie</span><div class="value"><span id="bms1_v">—</span><span class="unit">V</span></div>
     <span class="label">Prąd</span><div class="value"><span id="bms1_a">—</span><span class="unit">A</span></div>
     <span class="label">Moc</span><div class="value"><span id="bms1_w">—</span><span class="unit">W</span></div>
     <span class="label">SOC</span>
-    <div class="soc-bar">
-      <div class="soc-fill" id="bms1_soc"></div>
-      <span class="soc-text" id="bms1_soc_text">—%</span>
-    </div>
+    <div class="soc-bar"><div class="soc-fill" id="bms1_soc"></div><span class="soc-text" id="bms1_soc_text">—%</span></div>
     <span class="label">Pozostała pojemność</span>
     <div class="value capacity"><span id="bms1_cap">—</span><span class="unit">Ah</span></div>
     <span class="label">Balancer</span><div class="value balancer"><span id="bms1_bal">—</span><span class="unit">A</span></div>
+
+    <span class="label">Cell Voltages</span>
+    <div class="cells">
+      <div class="cell" id="bms1_cell_1">C1<span id="bms1_cell_1_v">—</span></div>
+      <div class="cell" id="bms1_cell_2">C2<span id="bms1_cell_2_v">—</span></div>
+      <div class="cell" id="bms1_cell_3">C3<span id="bms1_cell_3_v">—</span></div>
+      <div class="cell" id="bms1_cell_4">C4<span id="bms1_cell_4_v">—</span></div>
+      <div class="cell" id="bms1_cell_5">C5<span id="bms1_cell_5_v">—</span></div>
+      <div class="cell" id="bms1_cell_6">C6<span id="bms1_cell_6_v">—</span></div>
+      <div class="cell" id="bms1_cell_7">C7<span id="bms1_cell_7_v">—</span></div>
+      <div class="cell" id="bms1_cell_8">C8<span id="bms1_cell_8_v">—</span></div>
+      <div class="cell" id="bms1_cell_9">C9<span id="bms1_cell_9_v">—</span></div>
+      <div class="cell" id="bms1_cell_10">C10<span id="bms1_cell_10_v">—</span></div>
+      <div class="cell" id="bms1_cell_11">C11<span id="bms1_cell_11_v">—</span></div>
+      <div class="cell" id="bms1_cell_12">C12<span id="bms1_cell_12_v">—</span></div>
+      <div class="cell" id="bms1_cell_13">C13<span id="bms1_cell_13_v">—</span></div>
+      <div class="cell" id="bms1_cell_14">C14<span id="bms1_cell_14_v">—</span></div>
+      <div class="cell" id="bms1_cell_15">C15<span id="bms1_cell_15_v">—</span></div>
+      <div class="cell" id="bms1_cell_16">C16<span id="bms1_cell_16_v">—</span></div>
+    </div>
   </div>
 
-  <!-- BMS 2 -->
+  <!-- MAGAZYN 2 i 3 kopiujemy -->
   <div class="card" id="bms2Card">
     <div class="bms-title">Magazyn 2</div>
     <span class="label">Napięcie</span><div class="value"><span id="bms2_v">—</span><span class="unit">V</span></div>
     <span class="label">Prąd</span><div class="value"><span id="bms2_a">—</span><span class="unit">A</span></div>
     <span class="label">Moc</span><div class="value"><span id="bms2_w">—</span><span class="unit">W</span></div>
     <span class="label">SOC</span>
-    <div class="soc-bar">
-      <div class="soc-fill" id="bms2_soc"></div>
-      <span class="soc-text" id="bms2_soc_text">—%</span>
-    </div>
+    <div class="soc-bar"><div class="soc-fill" id="bms2_soc"></div><span class="soc-text" id="bms2_soc_text">—%</span></div>
     <span class="label">Pozostała pojemność</span>
     <div class="value capacity"><span id="bms2_cap">—</span><span class="unit">Ah</span></div>
     <span class="label">Balancer</span><div class="value balancer"><span id="bms2_bal">—</span><span class="unit">A</span></div>
+
+    <span class="label">Cell Voltages</span>
+    <div class="cells">
+      <!-- 16 komórek analogicznie -->
+      <div class="cell" id="bms2_cell_1">C1<span id="bms2_cell_1_v">—</span></div>
+      <div class="cell" id="bms2_cell_2">C2<span id="bms2_cell_2_v">—</span></div>
+      <div class="cell" id="bms2_cell_3">C3<span id="bms2_cell_3_v">—</span></div>
+      <div class="cell" id="bms2_cell_4">C4<span id="bms2_cell_4_v">—</span></div>
+      <div class="cell" id="bms2_cell_5">C5<span id="bms2_cell_5_v">—</span></div>
+      <div class="cell" id="bms2_cell_6">C6<span id="bms2_cell_6_v">—</span></div>
+      <div class="cell" id="bms2_cell_7">C7<span id="bms2_cell_7_v">—</span></div>
+      <div class="cell" id="bms2_cell_8">C8<span id="bms2_cell_8_v">—</span></div>
+      <div class="cell" id="bms2_cell_9">C9<span id="bms2_cell_9_v">—</span></div>
+      <div class="cell" id="bms2_cell_10">C10<span id="bms2_cell_10_v">—</span></div>
+      <div class="cell" id="bms2_cell_11">C11<span id="bms2_cell_11_v">—</span></div>
+      <div class="cell" id="bms2_cell_12">C12<span id="bms2_cell_12_v">—</span></div>
+      <div class="cell" id="bms2_cell_13">C13<span id="bms2_cell_13_v">—</span></div>
+      <div class="cell" id="bms2_cell_14">C14<span id="bms2_cell_14_v">—</span></div>
+      <div class="cell" id="bms2_cell_15">C15<span id="bms2_cell_15_v">—</span></div>
+      <div class="cell" id="bms2_cell_16">C16<span id="bms2_cell_16_v">—</span></div>
+    </div>
   </div>
 
-  <!-- BMS 3 -->
   <div class="card" id="bms3Card">
     <div class="bms-title">Magazyn 3</div>
     <span class="label">Napięcie</span><div class="value"><span id="bms3_v">—</span><span class="unit">V</span></div>
     <span class="label">Prąd</span><div class="value"><span id="bms3_a">—</span><span class="unit">A</span></div>
     <span class="label">Moc</span><div class="value"><span id="bms3_w">—</span><span class="unit">W</span></div>
     <span class="label">SOC</span>
-    <div class="soc-bar">
-      <div class="soc-fill" id="bms3_soc"></div>
-      <span class="soc-text" id="bms3_soc_text">—%</span>
-    </div>
+    <div class="soc-bar"><div class="soc-fill" id="bms3_soc"></div><span class="soc-text" id="bms3_soc_text">—%</span></div>
     <span class="label">Pozostała pojemność</span>
     <div class="value capacity"><span id="bms3_cap">—</span><span class="unit">Ah</span></div>
     <span class="label">Balancer</span><div class="value balancer"><span id="bms3_bal">—</span><span class="unit">A</span></div>
+
+    <span class="label">Cell Voltages</span>
+    <div class="cells">
+      <!-- 16 komórek analogicznie -->
+      <div class="cell" id="bms3_cell_1">C1<span id="bms3_cell_1_v">—</span></div>
+      <div class="cell" id="bms3_cell_2">C2<span id="bms3_cell_2_v">—</span></div>
+      <div class="cell" id="bms3_cell_3">C3<span id="bms3_cell_3_v">—</span></div>
+      <div class="cell" id="bms3_cell_4">C4<span id="bms3_cell_4_v">—</span></div>
+      <div class="cell" id="bms3_cell_5">C5<span id="bms3_cell_5_v">—</span></div>
+      <div class="cell" id="bms3_cell_6">C6<span id="bms3_cell_6_v">—</span></div>
+      <div class="cell" id="bms3_cell_7">C7<span id="bms3_cell_7_v">—</span></div>
+      <div class="cell" id="bms3_cell_8">C8<span id="bms3_cell_8_v">—</span></div>
+      <div class="cell" id="bms3_cell_9">C9<span id="bms3_cell_9_v">—</span></div>
+      <div class="cell" id="bms3_cell_10">C10<span id="bms3_cell_10_v">—</span></div>
+      <div class="cell" id="bms3_cell_11">C11<span id="bms3_cell_11_v">—</span></div>
+      <div class="cell" id="bms3_cell_12">C12<span id="bms3_cell_12_v">—</span></div>
+      <div class="cell" id="bms3_cell_13">C13<span id="bms3_cell_13_v">—</span></div>
+      <div class="cell" id="bms3_cell_14">C14<span id="bms3_cell_14_v">—</span></div>
+      <div class="cell" id="bms3_cell_15">C15<span id="bms3_cell_15_v">—</span></div>
+      <div class="cell" id="bms3_cell_16">C16<span id="bms3_cell_16_v">—</span></div>
+    </div>
   </div>
+
 </div>
 
 <script>
@@ -205,66 +215,29 @@ MQTT: <b id="mqttStatus">—</b> <span id="diag"></span>
   const PREFIX = "bms_radek_leszno";
   const WS_URL = "wss://broker.hivemq.com:8884/mqtt";
 
-  const TOPICS = {
-    bms1_v: `${PREFIX}/sensor/jk-bms_1_voltage/state`,
-    bms1_a: `${PREFIX}/sensor/jk-bms_1_current/state`,
-    bms1_w: `${PREFIX}/sensor/jk-bms_1_power/state`,
-    bms1_soc: `${PREFIX}/sensor/jk-bms_1_soc/state`,
-    bms1_bal: `${PREFIX}/sensor/jk-bms_1_balancer_current/state`,
-    bms1_cap: `${PREFIX}/sensor/jk-bms_1_battery_capacity/state`,
+  const bmsCount = 3;
+  const cellCount = 16;
 
-    bms2_v: `${PREFIX}/sensor/jk-bms_2_voltage/state`,
-    bms2_a: `${PREFIX}/sensor/jk-bms_2_current/state`,
-    bms2_w: `${PREFIX}/sensor/jk-bms_2_power/state`,
-    bms2_soc: `${PREFIX}/sensor/jk-bms_2_soc/state`,
-    bms2_bal: `${PREFIX}/sensor/jk-bms_2_balancer_current/state`,
-    bms2_cap: `${PREFIX}/sensor/jk-bms_2_battery_capacity/state`,
+  const TOPICS = {};
 
-    bms3_v: `${PREFIX}/sensor/jk-bms_3_voltage/state`,
-    bms3_a: `${PREFIX}/sensor/jk-bms_3_current/state`,
-    bms3_w: `${PREFIX}/sensor/jk-bms_3_power/state`,
-    bms3_soc: `${PREFIX}/sensor/jk-bms_3_soc/state`,
-    bms3_bal: `${PREFIX}/sensor/jk-bms_3_balancer_current/state`,
-    bms3_cap: `${PREFIX}/sensor/jk-bms_3_battery_capacity/state`,
-  };
+  for(let i=1;i<=bmsCount;i++){
+    TOPICS[`bms${i}_v`] = `${PREFIX}/sensor/jk-bms_${i}_voltage/state`;
+    TOPICS[`bms${i}_a`] = `${PREFIX}/sensor/jk-bms_${i}_current/state`;
+    TOPICS[`bms${i}_w`] = `${PREFIX}/sensor/jk-bms_${i}_power/state`;
+    TOPICS[`bms${i}_soc`] = `${PREFIX}/sensor/jk-bms_${i}_soc/state`;
+    TOPICS[`bms${i}_bal`] = `${PREFIX}/sensor/jk-bms_${i}_balancer_current/state`;
+    TOPICS[`bms${i}_cap`] = `${PREFIX}/sensor/jk-bms_${i}_battery_capacity/state`;
+    for(let c=1;c<=cellCount;c++){
+      TOPICS[`bms${i}_cell_${c}`] = `${PREFIX}/sensor/jk-bms_${i}_cell_voltage_${c}/state`;
+    }
+  }
 
-  const el = {};
-  Object.keys(TOPICS).forEach(k => el[k] = document.getElementById(k));
-  el.mqttStatus = document.getElementById('mqttStatus');
-  el.diag = document.getElementById('diag');
+  const el={};
+  Object.keys(TOPICS).forEach(k=>el[k]=document.getElementById(k));
+  el.mqttStatus=document.getElementById('mqttStatus');
+  el.diag=document.getElementById('diag');
 
-  function num(v){ const m=String(v).match(/-?\d+(?:[.,]\d+)?/); return m?parseFloat(m[0].replace(',','.')):NaN; }
-  const fmt=n=>isNaN(n)?"—":n.toFixed(1).replace('.',',');
+  function num(v){const m=String(v).match(/-?\d+(?:[.,]\d+)?/); return m?parseFloat(m[0].replace(',','.')):NaN;}
+  const fmt=n=>isNaN(n)?"—":n.toFixed(3).replace('.',',');
 
-  const client = mqtt.connect(WS_URL, {clientId:"web_"+Math.random().toString(16).slice(2)});
-  client.on('connect',()=>{ 
-    el.mqttStatus.textContent="połączono"; 
-    Object.values(TOPICS).forEach(t=>client.subscribe(t));
-  });
-
-  let msg=0,last=0;
-  const diag=()=> el.diag.innerHTML=` | msg: <b>${msg}</b> | last: <b>${last?new Date(last).toLocaleTimeString():"—"}</b>`;
-
-  client.on('message',(t,p)=>{
-    msg++; last=Date.now(); diag();
-    const v=num(p.toString());
-
-    Object.keys(TOPICS).forEach(k=>{
-      if(t===TOPICS[k]){
-        if(k.includes('soc')){
-          el[k].style.width = Math.min(100, Math.max(0,v)) + '%';
-          document.getElementById(k+'_text').textContent = fmt(v) + '%';
-        } else {
-          el[k].textContent = fmt(v);
-        }
-      }
-    });
-  });
-
-  client.on('offline',()=>el.mqttStatus.textContent="offline");
-  client.on('error',()=>el.mqttStatus.textContent="błąd");
-})();
-</script>
-
-</body>
-</html>
+  const
