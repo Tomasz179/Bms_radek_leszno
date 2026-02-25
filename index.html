@@ -70,9 +70,7 @@ h1{
 const BROKER = "wss://broker.hivemq.com:8884/mqtt"; // WSS dla HTTPS
 const PREFIX = "bms_radek_leszno";
 
-// struktura danych dla banków
 const banks = {1:{},2:{},3:{}};
-
 const container = document.getElementById("banks");
 
 // === TWORZENIE UI DLA BANKÓW ===
@@ -134,9 +132,9 @@ const client = mqtt.connect(BROKER);
 client.on("connect",()=>{
     document.getElementById("mqttStatus").textContent="MQTT: połączono";
 
-    // subskrybujemy wszystkie tematy dla banków
+    // subskrybujemy wszystkie tematy banków
     for(let i=1;i<=3;i++){
-        client.subscribe(`jk_bms_${i}/+/state`);
+        client.subscribe(`#`); // subskrypcja wszystkiego dla testu
     }
 });
 
@@ -148,9 +146,10 @@ client.on("error",(err)=>{
 // odbieranie wiadomości
 client.on("message",(topic,message)=>{
     const payload = message.toString();
+    console.log("Received:", topic, payload); // debug
 
-    // wyciągamy bank i klucz
-    const match = topic.match(/jk_bms_(\d+)_(\w+)\/state$/);
+    // dopasowanie topicu: obsługuje prefiks lub brak prefiksu
+    const match = topic.match(/(?:.*\/)?jk_bms_(\d+)_(\w+)\/state$/);
     if(!match) return;
 
     const bank = parseInt(match[1]);
