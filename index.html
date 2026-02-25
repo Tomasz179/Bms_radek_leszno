@@ -2,185 +2,32 @@
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Magazyn Energii – 3x JK BMS</title>
-
+<title>MQTT Debug</title>
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-
-<style>
-body{
-    font-family: Arial, sans-serif;
-    background:#0d1117;
-    color:#e6edf3;
-    margin:0;
-    padding:20px;
-}
-h1{
-    text-align:center;
-}
-.status{
-    text-align:center;
-    margin-bottom:20px;
-    font-weight:bold;
-}
-.section{
-    border:1px solid #30363d;
-    border-radius:12px;
-    padding:20px;
-    margin-bottom:25px;
-}
-.grid{
-    display:grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px,1fr));
-    gap:15px;
-}
-.card{
-    border:1px solid #30363d;
-    border-radius:10px;
-    padding:15px;
-    background:#161b22;
-}
-.label{
-    font-size:14px;
-    color:#8b949e;
-}
-.value{
-    font-size:22px;
-    margin-top:5px;
-}
-.charge{ color:#2ecc71; }
-.discharge{ color:#e74c3c; }
-.total{
-    font-size:28px;
-    text-align:center;
-    margin:15px 0 30px 0;
-}
-#log{
-    margin-top:20px;
-    max-height:300px;
-    overflow-y:auto;
-    border:1px solid #30363d;
-    padding:10px;
-    font-size:12px;
-    background:#0b0f13;
-}
-</style>
 </head>
 <body>
-
-<h1>Magazyn Energii – 3x JK BMS</h1>
-<div class="status" id="mqttStatus">MQTT: łączenie...</div>
-<div class="total">Suma mocy: <span id="totalPower">0</span> W</div>
-<div id="banks"></div>
-
-<h2>Log przychodzących wiadomości</h2>
-<div id="log"></div>
+<h1>MQTT Debug</h1>
+<div id="log" style="white-space:pre-wrap;"></div>
 
 <script>
-// === KONFIGURACJA ===
-const BROKER = "wss://broker.hivemq.com:8884/mqtt"; // WSS dla HTTPS
-const PREFIX = "bms_radek_leszno";
-const banks = {1:{},2:{},3:{}};
-const container = document.getElementById("banks");
 const log = document.getElementById("log");
+const BROKER = "wss://broker.hivemq.com:8884/mqtt"; // WSS dla HTTPS
 
-// === TWORZENIE UI DLA BANKÓW ===
-function createBankUI(n){
-    const section = document.createElement("div");
-    section.className="section";
-    section.innerHTML=`
-        <h2>Magazyn ${n}</h2>
-        <div class="grid">
-            ${card("Voltage","voltage","V",n)}
-            ${card("Current","current","A",n)}
-            ${card("Power","power","W",n)}
-            ${card("SOC","soc","%","n")}
-            ${card("Capacity","battery_capacity","Ah",n)}
-            ${card("Max Cell","max_cell","V",n)}
-            ${card("Min Cell","min_cell","V",n)}
-            ${card("Balancer","balancer_current","A",n)}
-        </div>
-    `;
-    container.appendChild(section);
-}
-
-function card(label,key,unit,bank){
-    return `
-    <div class="card">
-        <div class="label">${label}</div>
-        <div class="value" id="b${bank}_${key}">${unit==="%"?"-- %":"-- "+unit}</div>
-    </div>`;
-}
-
-// generujemy UI dla 3 banków
-[1,2,3].forEach(createBankUI);
-
-// === FUNKCJE AKTUALIZACJI UI ===
-function updateUI(bank,key,value){
-    const el = document.getElementById(`b${bank}_${key}`);
-    if(!el) return;
-    el.textContent = value;
-
-    if(key==="power"){
-        el.classList.remove("charge","discharge");
-        if(parseFloat(value)>0) el.classList.add("charge");
-        if(parseFloat(value)<0) el.classList.add("discharge");
-    }
-}
-
-function updateTotal(){
-    let sum=0;
-    Object.values(banks).forEach(b=>{
-        if(b.power) sum+=parseFloat(b.power);
-    });
-    document.getElementById("totalPower").textContent=sum.toFixed(0);
-}
-
-// === POŁĄCZENIE MQTT ===
 const client = mqtt.connect(BROKER);
 
-client.on("connect",()=>{
-    document.getElementById("mqttStatus").textContent="MQTT: połączono";
-    // subskrybujemy wszystkie tematy prefiksu BMS
-    client.subscribe(`${PREFIX}/#`);
+client.on("connect", ()=>{
+    log.innerText += "Połączono z brokerem\n";
+    client.subscribe("#"); // wszystko
 });
 
-client.on("error",(err)=>{
-    document.getElementById("mqttStatus").textContent="MQTT: błąd połączenia";
-    console.error(err);
+client.on("message", (topic, message)=>{
+    log.innerText += `Topic: ${topic} → ${message.toString()}\n`;
+    log.scrollTop = log.scrollHeight;
 });
 
-// odbieranie wiadomości
-client.on("message",(topic,message)=>{
-    const payload = message.toString();
-
-    // log do przeglądarki
-    const div = document.createElement("div");
-    div.textContent = `Topic: ${topic} → ${payload}`;
-    log.appendChild(div);
-    log.scrollTop = log.scrollHeight; // przewiń do końca
-
-    // dopasowanie topicu: obsługuje prefiks PREFIX i numer banku
-    const regex = new RegExp(`^${PREFIX}\/jk_bms_(\\d+)_(\\w+)\/state$`);
-    const match = topic.match(regex);
-    if(!match) return;
-
-    const bank = parseInt(match[1]);
-    const key = match[2];
-
-    banks[bank][key] = payload;
-
-    let unit="";
-    if(key==="voltage"||key==="max_cell"||key==="min_cell") unit=" V";
-    if(key==="current"||key==="balancer_current") unit=" A";
-    if(key==="power") unit=" W";
-    if(key==="soc") unit=" %";
-    if(key==="battery_capacity") unit=" Ah";
-
-    updateUI(bank,key,payload+unit);
-    updateTotal();
+client.on("error", (err)=>{
+    log.innerText += `Błąd: ${err}\n`;
 });
 </script>
-
 </body>
 </html>
