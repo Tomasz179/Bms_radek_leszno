@@ -66,50 +66,48 @@ h1{
 <div id="banks"></div>
 
 <script>
-const BROKER = "wss://broker.hivemq.com:8884/mqtt";
-const TOPIC_PREFIX = "bms_radek_leszno";
+const WS_URL = "wss://broker.hivemq.com:8884/mqtt";
+const PREFIX = "bms_radek_leszno";
 
 const banks = {
-    "jk-bms_1":{},
-    "jk-bms_2":{},
-    "jk-bms_3":{}
+    1:{}, 2:{}, 3:{}
 };
 
 const container = document.getElementById("banks");
 
-function createBankUI(name){
+function createBankUI(bankNumber){
+    const bankName = `jk-bms_${bankNumber}`;
     const section = document.createElement("div");
     section.className="section";
     section.innerHTML=`
-        <h2>${name}</h2>
+        <h2>Magazyn ${bankNumber}</h2>
         <div class="grid">
-            ${card("Voltage","voltage","V")}
-            ${card("Current","current","A")}
-            ${card("Power","power","W")}
-            ${card("SOC","soc","%")}
-            ${card("Capacity","battery_capacity","Ah")}
-            ${card("Max Cell","max_cell","V")}
-            ${card("Min Cell","min_cell","V")}
-            ${card("Balancer","balancer_current","A")}
+            ${card(bankNumber,"voltage","V")}
+            ${card(bankNumber,"current","A")}
+            ${card(bankNumber,"power","W")}
+            ${card(bankNumber,"soc","%")}
+            ${card(bankNumber,"battery_capacity","Ah")}
+            ${card(bankNumber,"max_cell","V")}
+            ${card(bankNumber,"min_cell","V")}
+            ${card(bankNumber,"balancer_current","A")}
         </div>
     `;
     container.appendChild(section);
 }
 
-function card(label,id,unit){
+function card(bank,key,unit){
     return `
     <div class="card">
-        <div class="label">${label}</div>
-        <div class="value" id="${id}">${unit==="%"?"-- %":"-- "+unit}</div>
+        <div class="label">${key.replace("_"," ")}</div>
+        <div class="value" id="b${bank}_${key}">${unit==="%"?"-- %":"-- "+unit}</div>
     </div>`;
 }
 
-["jk-bms_1","jk-bms_2","jk-bms_3"].forEach(createBankUI);
+[1,2,3].forEach(createBankUI);
 
 function updateUI(bank,key,value){
-    const el = document.getElementById(key);
+    const el = document.getElementById(`b${bank}_${key}`);
     if(!el) return;
-
     el.textContent = value;
 
     if(key==="power"){
@@ -127,32 +125,38 @@ function updateTotal(){
     document.getElementById("totalPower").textContent=sum.toFixed(0);
 }
 
-// MQTT
-const client = mqtt.connect(BROKER);
+const client = mqtt.connect(WS_URL);
 
 client.on("connect",()=>{
+    console.log("Połączono z brokerem MQTT");
     document.getElementById("mqttStatus").textContent="MQTT: połączono";
-    client.subscribe(`${TOPIC_PREFIX}/sensor/+/state`);
+    client.subscribe(PREFIX+"/sensor/+/+/state",(err)=>{
+        if(err) console.log("Błąd subskrypcji:", err);
+        else console.log("Subskrybowano wszystkie sensory");
+    });
 });
 
 client.on("message",(topic,message)=>{
     const payload = message.toString();
+    console.log("Otrzymano:", topic, payload);
 
-    // dopasuj do /sensor/<sensor_name>/state
-    const match = topic.match(/sensor\/(.+?)\/state$/);
+    // topic: bms_radek_leszno/sensor/jk-bms_1_voltage/state
+    const match = topic.match(/jk-bms_(\d+)_(\w+)\/state$/);
     if(!match) return;
 
-    const fullName = match[1]; // np. jk-bms_1_voltage
-    const parts = fullName.split("_");
-    if(parts.length<3) return;
-
-    const bank = parts[0]+"_"+parts[1]; // jk-bms_1
-    const key = parts.slice(2).join("_"); // voltage, current itp.
+    const bank = parseInt(match[1]);
+    const key = match[2];
 
     banks[bank][key] = payload;
     updateUI(bank,key,payload);
     updateTotal();
 });
+
+client.on("error",(err)=>{
+    console.error("MQTT ERROR:", err);
+    document.getElementById("mqttStatus").textContent="MQTT: błąd";
+});
+
 </script>
 
 </body>
